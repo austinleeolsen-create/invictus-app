@@ -10,10 +10,14 @@ export type StripeReconciliation = {
   uniqueCustomers: number;
   pastDueSubscriptions: number;
   linkedSubscriptions: number;
-  unmatchedSubscriptions: string[];
+  unmatchedSubscriptions: Array<{
+    id: string;
+    customer: string;
+    monthlyRecurringRevenue: number;
+  }>;
 };
 
-function monthlyAmount(item: Stripe.SubscriptionItem) {
+export function monthlyAmount(item: Stripe.SubscriptionItem) {
   const price = item.price;
   const amount = price.unit_amount ?? 0;
   const quantity = item.quantity ?? 1;
@@ -41,6 +45,22 @@ export async function reconcileStripe(linkedIds: Set<string>): Promise<StripeRec
     typeof subscription.customer === "string" ? subscription.customer : subscription.customer.id,
   ));
   const unmatched = active.filter((subscription) => !linkedIds.has(subscription.id));
+  const unmatchedSubscriptions = await Promise.all(unmatched.map(async (subscription) => {
+    const customerId = typeof subscription.customer === "string"
+      ? subscription.customer
+      : subscription.customer.id;
+    const customer = await stripe.customers.retrieve(customerId);
+    const label = customer.deleted
+      ? "Deleted customer"
+      : customer.name || customer.email || "Unnamed Stripe customer";
+    return {
+      id: subscription.id,
+      customer: label,
+      monthlyRecurringRevenue: subscription.items.data.reduce(
+        (sum, item) => sum + monthlyAmount(item), 0,
+      ) / 100,
+    };
+  }));
 
   return {
     mode: "test",
@@ -53,6 +73,6 @@ export async function reconcileStripe(linkedIds: Set<string>): Promise<StripeRec
     uniqueCustomers: customers.size,
     pastDueSubscriptions: subscriptions.filter((subscription) => subscription.status === "past_due").length,
     linkedSubscriptions: active.length - unmatched.length,
-    unmatchedSubscriptions: unmatched.map((subscription) => subscription.id),
+    unmatchedSubscriptions,
   };
 }
