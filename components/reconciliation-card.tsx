@@ -44,7 +44,7 @@ export function ReconciliationCard({ players }: { players: PlayerOption[] }) {
   }
 
   return (
-    <section className="reconcile-card">
+    <section className="reconcile-card" id="billing">
       <div className="card-heading">
         <div><p className="eyebrow">Stripe test mode</p><h2>Billing reconciliation</h2></div>
         <ShieldCheck aria-hidden="true" />
