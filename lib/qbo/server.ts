@@ -61,3 +61,38 @@ export async function exchangeAuthorizationCode(code: string) {
   if (!response.ok) throw new Error(result.error_description ?? result.error ?? "QuickBooks token exchange failed.");
   return result as QboTokenResponse;
 }
+
+function basicAuthorization() {
+  return `Basic ${Buffer.from(`${required("QBO_CLIENT_ID")}:${required("QBO_CLIENT_SECRET")}`).toString("base64")}`;
+}
+
+export async function refreshAccessToken(refreshToken: string) {
+  const response = await fetch(TOKEN_URL, {
+    method: "POST",
+    headers: { Authorization: basicAuthorization(), Accept: "application/json", "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ grant_type: "refresh_token", refresh_token: refreshToken }),
+    cache: "no-store",
+  });
+  const result = await response.json();
+  if (!response.ok) throw new Error(result.error_description ?? result.error ?? "QuickBooks token refresh failed.");
+  return result as QboTokenResponse;
+}
+
+export async function qboGet<T>(realmId: string, accessToken: string, path: string, params?: Record<string, string>) {
+  const base = process.env.QBO_ENVIRONMENT === "production"
+    ? "https://quickbooks.api.intuit.com/v3"
+    : "https://sandbox-quickbooks.api.intuit.com/v3";
+  const url = new URL(`${base}/company/${encodeURIComponent(realmId)}/${path}`);
+  Object.entries(params ?? {}).forEach(([key, value]) => url.searchParams.set(key, value));
+  url.searchParams.set("minorversion", "75");
+  const response = await fetch(url, {
+    headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/json" },
+    cache: "no-store",
+  });
+  const result = await response.json();
+  if (!response.ok) {
+    const message = result?.Fault?.Error?.[0]?.Message ?? result?.Fault?.Error?.[0]?.Detail ?? "QuickBooks API request failed.";
+    throw new Error(message);
+  }
+  return result as T;
+}
