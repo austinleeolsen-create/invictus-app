@@ -10,6 +10,11 @@ export type StripeReconciliation = {
   uniqueCustomers: number;
   pastDueSubscriptions: number;
   linkedSubscriptions: number;
+  linkedBillingStatuses: Array<{
+    subscriptionId: string;
+    billingStatus: "active" | "past_due" | "canceled";
+    openBalance: number;
+  }>;
   unmatchedSubscriptions: Array<{
     id: string;
     customer: string;
@@ -45,6 +50,21 @@ export async function reconcileStripe(linkedIds: Set<string>): Promise<StripeRec
     typeof subscription.customer === "string" ? subscription.customer : subscription.customer.id,
   ));
   const unmatched = active.filter((subscription) => !linkedIds.has(subscription.id));
+  const openBalanceByCustomer = new Map<string, number>();
+  for await (const invoice of stripe.invoices.list({ status: "open", limit: 100 })) {
+    const customerId = typeof invoice.customer === "string" ? invoice.customer : invoice.customer?.id;
+    if (customerId) openBalanceByCustomer.set(customerId, (openBalanceByCustomer.get(customerId) ?? 0) + invoice.amount_remaining / 100);
+  }
+  const linkedBillingStatuses = subscriptions.filter((subscription) => linkedIds.has(subscription.id)).map((subscription) => {
+    const customerId = typeof subscription.customer === "string" ? subscription.customer : subscription.customer.id;
+    const openBalance = openBalanceByCustomer.get(customerId) ?? 0;
+    const billingStatus = subscription.status === "canceled"
+      ? "canceled" as const
+      : subscription.status === "past_due" || subscription.status === "unpaid" || openBalance > 0
+        ? "past_due" as const
+        : "active" as const;
+    return { subscriptionId: subscription.id, billingStatus, openBalance };
+  });
   const unmatchedSubscriptions = await Promise.all(unmatched.map(async (subscription) => {
     const customerId = typeof subscription.customer === "string"
       ? subscription.customer
@@ -73,6 +93,7 @@ export async function reconcileStripe(linkedIds: Set<string>): Promise<StripeRec
     uniqueCustomers: customers.size,
     pastDueSubscriptions: subscriptions.filter((subscription) => subscription.status === "past_due").length,
     linkedSubscriptions: active.length - unmatched.length,
+    linkedBillingStatuses,
     unmatchedSubscriptions,
   };
 }

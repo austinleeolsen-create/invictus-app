@@ -29,7 +29,13 @@ export async function POST() {
     const linkedIds = new Set(
       (billing ?? []).map((row) => row.stripe_subscription_id).filter(Boolean) as string[],
     );
-    return NextResponse.json(await reconcileStripe(linkedIds));
+    const result = await reconcileStripe(linkedIds);
+    await Promise.all(result.linkedBillingStatuses.map((billing) => supabase
+      .from("player_billing")
+      .update({ billing_status: billing.billingStatus, open_balance: billing.openBalance, updated_at: new Date().toISOString() })
+      .eq("stripe_subscription_id", billing.subscriptionId)));
+    await supabase.from("stripe_sync_log").insert({ sync_type: "payment_status", status: "completed", records_processed: result.linkedBillingStatuses.length, message: "Player payment status and open balances refreshed from Stripe.", completed_at: new Date().toISOString() });
+    return NextResponse.json(result);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Reconciliation failed.";
     return NextResponse.json({ error: message }, { status: 500 });
