@@ -10,6 +10,7 @@ import { CashPlanner, type CashPlan } from "@/components/cash-planner";
 import { PaymentFollowups, type FollowupPlayer } from "@/components/payment-followups";
 import { CashOutlook, type CashItem } from "@/components/cash-outlook";
 import { PayrollPlanner, type PayrollRow } from "@/components/payroll-planner";
+import { TeamHealth, type TeamHealthRow } from "@/components/team-health";
 
 export default async function Home() {
   const supabase = await createSupabaseServerClient();
@@ -115,6 +116,19 @@ export default async function Home() {
     : { data: null };
   const payrollRows: PayrollRow[] = (payrollRowsData ?? []).map((row) => ({ ...row, hourly_rate: Number(row.hourly_rate), skills_hours: Number(row.skills_hours), additional_hours: Number(row.additional_hours), team_stipend: Number(row.team_stipend), manager_pay: Number(row.manager_pay), bonus: Number(row.bonus), team_items: Array.isArray(row.team_items) ? row.team_items as Array<{ team: string; amount: number }> : [] }));
   const payrollTotal = payrollRows.reduce((sum, row) => sum + (row.team_items?.length ? row.team_items.reduce((teamSum, team) => teamSum + Number(team.amount), 0) : row.team_stipend) + row.hourly_rate * (row.skills_hours + row.additional_hours) + row.manager_pay + row.bonus, 0);
+  const teamStipends = new Map<string, number>();
+  payrollRows.forEach((row) => row.team_items?.forEach((item) => teamStipends.set(item.team.trim().toLowerCase(), (teamStipends.get(item.team.trim().toLowerCase()) ?? 0) + Number(item.amount))));
+  const teamHealth: TeamHealthRow[] = teams.map((team) => {
+    const teamPlayers = rosterPlayers.filter((player) => player.team === team.name);
+    const paying = teamPlayers.filter((player) => player.billingStatus === "active");
+    const pastDue = teamPlayers.filter((player) => player.billingStatus === "past_due" || Number(player.openBalance ?? 0) > 0);
+    const revenue = paying.reduce((sum, player) => sum + Number(player.monthlyTuition ?? 0), 0);
+    const cost = teamStipends.get(team.name.trim().toLowerCase()) ?? 0;
+    const averageTuition = paying.length ? revenue / paying.length : 0;
+    const breakEven = cost > 0 && averageTuition > 0 ? Math.ceil(cost / averageTuition) : null;
+    const status: TeamHealthRow["status"] = cost <= 0 ? "setup" : revenue - cost < 0 ? "losing" : pastDue.length ? "collections" : "healthy";
+    return { id: team.id, name: team.name, players: teamPlayers.length, payingPlayers: paying.length, pastDuePlayers: pastDue.length, monthlyRevenue: revenue, coachCost: cost, margin: revenue - cost, breakEvenPlayers: breakEven, status };
+  });
 
   return (
     <main className="app-shell">
@@ -128,6 +142,7 @@ export default async function Home() {
         <section className="hero" id="overview"><div><p>INVICTUS HUB</p><h2>One view of every player, team, and payment.</h2><span>Connected to your permission-controlled Supabase foundation.</span></div></section>
         <PlayerRoster players={rosterPlayers} showFinancials={showFinancials} />
         <TeamOperations teams={teams} coaches={coaches} seasons={seasonRows ?? []} canEdit={["owner_admin", "program_director"].includes(profile?.role ?? "")} canCreateSeason={profile?.role === "owner_admin"} />
+        {profile?.role === "owner_admin" ? <TeamHealth teams={teamHealth} /> : null}
         <div className="dashboard-grid">
           <section className="status-card"><p className="eyebrow">Foundation status</p><h2>Core systems ready</h2><ul><li><span>Supabase authentication</span><b>Connected</b></li><li><span>Role-based access</span><b>Enforced</b></li><li><span>Stripe connection</span><b className="test">Test mode</b></li></ul></section>
           {profile?.role === "owner_admin" ? <ReconciliationCard players={playerOptions} /> : <section className="reconcile-card"><p className="eyebrow">Billing</p><h2>Billing status is role protected</h2><p className="muted">Financial reconciliation is available to Owner/Admin users.</p></section>}
