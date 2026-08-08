@@ -1,12 +1,33 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CircleDollarSign, Save } from "lucide-react";
 
 export type CashPlan = { plan_month: string; other_revenue: number; rent: number; payroll: number; utilities: number; insurance: number; programs_and_events: number; other_expenses: number; safety_cushion: number; notes?: string | null };
 const blank = (month: string): CashPlan => ({ plan_month: month, other_revenue: 0, rent: 0, payroll: 0, utilities: 0, insurance: 0, programs_and_events: 0, other_expenses: 0, safety_cushion: 0, notes: "" });
 const currency = (value: number) => value.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 const fields: Array<{ key: keyof CashPlan; label: string }> = [{ key: "rent", label: "Rent" }, { key: "payroll", label: "Payroll" }, { key: "utilities", label: "Utilities" }, { key: "insurance", label: "Insurance" }, { key: "programs_and_events", label: "Programs & events" }, { key: "other_expenses", label: "Other bills" }];
+
+function displayAmount(value: number) { return value ? value.toLocaleString("en-US", { maximumFractionDigits: 2 }) : "0"; }
+function MoneyInput({ value, onChange }: { value: number; onChange: (value: number) => void }) {
+  const [text, setText] = useState(displayAmount(value));
+  const [focused, setFocused] = useState(false);
+  useEffect(() => { if (!focused) setText(displayAmount(value)); }, [value, focused]);
+  return <input
+    type="text"
+    inputMode="decimal"
+    value={text}
+    onFocus={() => { setFocused(true); setText(value === 0 ? "" : String(value)); }}
+    onChange={(event) => {
+      const cleaned = event.target.value.replace(/[^0-9.]/g, "");
+      const parts = cleaned.split(".");
+      const normalized = parts.length > 1 ? `${parts.shift()}.${parts.join("").slice(0, 2)}` : cleaned;
+      setText(normalized);
+      onChange(Number(normalized) || 0);
+    }}
+    onBlur={() => { setFocused(false); setText(displayAmount(Number(text.replaceAll(",", "")) || 0)); }}
+  />;
+}
 
 export function CashPlanner({ startingCash, expectedTuition, initialPlan, currentMonth }: { startingCash: number; expectedTuition: number; initialPlan: CashPlan | null; currentMonth: string }) {
   const [plan, setPlan] = useState(initialPlan ?? blank(currentMonth));
@@ -41,9 +62,9 @@ export function CashPlanner({ startingCash, expectedTuition, initialPlan, curren
       <div className={!planReady ? "cash-incomplete" : totals.extra >= 0 ? "safe-cash" : "cash-warning"}><span>{!planReady ? "Extra cash not calculated yet" : totals.extra >= 0 ? "Extra cash after safety cushion" : "Expected cash shortage"}</span><strong>{planReady ? currency(Math.abs(totals.extra)) : "Finish the plan"}</strong><small>{!planReady ? "Enter monthly costs and a safety cushion" : totals.extra >= 0 ? "Potentially available for repairs" : "Costs exceed the safe amount"}</small></div>
     </div>
     <div className="cash-form-grid">
-      <label>Other expected income<input type="number" min="0" step="0.01" value={plan.other_revenue} onChange={(e) => update("other_revenue", e.target.value)}/></label>
-      {fields.map((field) => <label key={field.key}>{field.label}<input type="number" min="0" step="0.01" value={String(plan[field.key] ?? 0)} onChange={(e) => update(field.key, e.target.value)}/></label>)}
-      <label>Minimum safety cushion<input type="number" min="0" step="0.01" value={plan.safety_cushion} onChange={(e) => update("safety_cushion", e.target.value)}/></label>
+      <label>Other expected income<MoneyInput value={plan.other_revenue} onChange={(value) => update("other_revenue", String(value))}/></label>
+      {fields.map((field) => <label key={field.key}>{field.label}<MoneyInput value={Number(plan[field.key] ?? 0)} onChange={(value) => update(field.key, String(value))}/></label>)}
+      <label>Minimum safety cushion<MoneyInput value={plan.safety_cushion} onChange={(value) => update("safety_cushion", String(value))}/></label>
     </div>
     <div className="cash-equation"><span>Expected money in <b>{currency(totals.revenue)}</b></span><span>Monthly costs <b>{currency(totals.expenses)}</b></span></div>
     {!planReady ? <p className="cash-plan-warning">Do not treat the projected balance as extra cash yet. Add this month’s expenses and the minimum amount that must stay in the bank.</p> : null}
