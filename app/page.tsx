@@ -111,10 +111,10 @@ export default async function Home() {
     : { data: null };
   const cashItems: CashItem[] = (cashItemRows ?? []).map((item) => ({ itemType: item.item_type as CashItem["itemType"], name: item.name, documentNumber: item.document_number, dueDate: item.due_date, balance: Number(item.balance ?? 0), accountSubtype: item.account_subtype }));
   const { data: payrollRowsData } = profile?.role === "owner_admin"
-    ? await supabase.from("monthly_payroll_entries").select("id, coach_id, staff_name, role, hourly_rate, skills_hours, additional_hours, team_stipend, manager_pay, bonus").eq("plan_month", currentMonth).order("staff_name")
+    ? await supabase.from("monthly_payroll_entries").select("id, coach_id, staff_name, role, hourly_rate, skills_hours, additional_hours, team_stipend, manager_pay, bonus, team_items, extra_pay_note, bonus_note").eq("plan_month", currentMonth).order("staff_name")
     : { data: null };
-  const payrollRows: PayrollRow[] = (payrollRowsData ?? []).map((row) => ({ ...row, hourly_rate: Number(row.hourly_rate), skills_hours: Number(row.skills_hours), additional_hours: Number(row.additional_hours), team_stipend: Number(row.team_stipend), manager_pay: Number(row.manager_pay), bonus: Number(row.bonus) }));
-  const payrollTotal = payrollRows.reduce((sum, row) => sum + row.team_stipend + row.hourly_rate * (row.skills_hours + row.additional_hours) + row.manager_pay + row.bonus, 0);
+  const payrollRows: PayrollRow[] = (payrollRowsData ?? []).map((row) => ({ ...row, hourly_rate: Number(row.hourly_rate), skills_hours: Number(row.skills_hours), additional_hours: Number(row.additional_hours), team_stipend: Number(row.team_stipend), manager_pay: Number(row.manager_pay), bonus: Number(row.bonus), team_items: Array.isArray(row.team_items) ? row.team_items as Array<{ team: string; amount: number }> : [] }));
+  const payrollTotal = payrollRows.reduce((sum, row) => sum + (row.team_items?.length ? row.team_items.reduce((teamSum, team) => teamSum + Number(team.amount), 0) : row.team_stipend) + row.hourly_rate * (row.skills_hours + row.additional_hours) + row.manager_pay + row.bonus, 0);
 
   return (
     <main className="app-shell">

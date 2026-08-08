@@ -25,7 +25,14 @@ export async function POST(request: Request) {
         if (!Number.isFinite(value) || value < 0) throw new Error("Payroll amounts and hours must be zero or greater.");
         values[field] = Math.round(value * 100) / 100;
       }
-      return { ...(row.id ? { id: row.id } : {}), plan_month: body.plan_month, coach_id: row.coach_id || null, staff_name: staffName, role: String(row.role ?? "").trim() || null, ...values, updated_by: user.id, updated_at: new Date().toISOString() };
+      const teamItems = Array.isArray(row.team_items) ? row.team_items.slice(0, 30).map((item: unknown) => {
+        const detail = item as Record<string, unknown>;
+        const amount = Number(detail.amount ?? 0);
+        if (!Number.isFinite(amount) || amount < 0) throw new Error("Team stipends must be zero or greater.");
+        return { team: String(detail.team ?? "").trim(), amount: Math.round(amount * 100) / 100 };
+      }).filter((item: { team: string }) => item.team) : [];
+      values.team_stipend = teamItems.length ? teamItems.reduce((sum: number, item: { amount: number }) => sum + item.amount, 0) : values.team_stipend;
+      return { ...(row.id ? { id: row.id } : {}), plan_month: body.plan_month, coach_id: row.coach_id || null, staff_name: staffName, role: String(row.role ?? "").trim() || null, ...values, team_items: teamItems, extra_pay_note: String(row.extra_pay_note ?? "").trim() || null, bonus_note: String(row.bonus_note ?? "").trim() || null, updated_by: user.id, updated_at: new Date().toISOString() };
     });
     const existing = prepared.filter((row) => "id" in row);
     const additions = prepared.filter((row) => !("id" in row));
