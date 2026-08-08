@@ -8,6 +8,7 @@ import { TeamOperations, type TeamSummary, type CoachSummary } from "@/component
 import { QboConnectionCard } from "@/components/qbo-connection-card";
 import { CashPlanner, type CashPlan } from "@/components/cash-planner";
 import { PaymentFollowups, type FollowupPlayer } from "@/components/payment-followups";
+import { CashOutlook, type CashItem } from "@/components/cash-outlook";
 
 export default async function Home() {
   const supabase = await createSupabaseServerClient();
@@ -104,6 +105,10 @@ export default async function Home() {
     const followup = followupByPlayer.get(player.id);
     return { playerId: player.id, name: `${player.firstName} ${player.lastName}`, team: player.team, amount: Number(player.openBalance ?? player.monthlyTuition ?? 0), billingStatus: player.billingStatus ?? "open", followupMonth: currentMonth, status: followup?.status ?? "not_contacted", note: followup?.note ?? "" };
   });
+  const { data: cashItemRows } = profile?.role === "owner_admin"
+    ? await supabase.from("qbo_cash_items").select("item_type, name, document_number, due_date, balance, account_subtype").eq("active", true).order("due_date", { ascending: true, nullsFirst: false })
+    : { data: null };
+  const cashItems: CashItem[] = (cashItemRows ?? []).map((item) => ({ itemType: item.item_type as CashItem["itemType"], name: item.name, documentNumber: item.document_number, dueDate: item.due_date, balance: Number(item.balance ?? 0), accountSubtype: item.account_subtype }));
 
   return (
     <main className="app-shell">
@@ -122,6 +127,7 @@ export default async function Home() {
           {profile?.role === "owner_admin" ? <ReconciliationCard players={playerOptions} /> : <section className="reconcile-card"><p className="eyebrow">Billing</p><h2>Billing status is role protected</h2><p className="muted">Financial reconciliation is available to Owner/Admin users.</p></section>}
         </div>
         {profile?.role === "owner_admin" ? <PaymentFollowups initialRows={paymentFollowups} /> : null}
+        {profile?.role === "owner_admin" ? <CashOutlook items={cashItems} /> : null}
         {profile?.role === "owner_admin" ? <CashPlanner startingCash={startingCash} expectedTuition={expectedTuition} initialPlan={cashPlanRow as CashPlan | null} currentMonth={currentMonth} /> : null}
         {profile?.role === "owner_admin" ? <QboConnectionCard connected={Boolean(qboConnection)} environment={qboConnection?.environment} initialHistory={qboHistory} /> : null}
       </div>

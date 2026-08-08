@@ -7,6 +7,11 @@ export const runtime = "nodejs";
 type ColData = { value?: string };
 type ReportRow = { Header?: { ColData?: ColData[] }; Summary?: { ColData?: ColData[] }; Rows?: { Row?: ReportRow[] } };
 type Report = { Rows?: { Row?: ReportRow[] }; Header?: { ReportName?: string; StartPeriod?: string; EndPeriod?: string } };
+type QboRef = { name?: string };
+type QboAccount = { Id: string; Name?: string; AccountSubType?: string; CurrentBalance?: number };
+type QboInvoice = { Id: string; DocNumber?: string; CustomerRef?: QboRef; DueDate?: string; Balance?: number };
+type QboBill = { Id: string; DocNumber?: string; VendorRef?: QboRef; DueDate?: string; Balance?: number };
+type QueryResponse<T extends string, R> = { QueryResponse?: Partial<Record<T, R[]>> };
 
 function numberFrom(row?: ReportRow) {
   const cols = row?.Summary?.ColData ?? row?.Header?.ColData;
@@ -60,10 +65,13 @@ export async function POST() {
     const start = new Date();
     start.setUTCMonth(start.getUTCMonth() - 6);
     const startDate = start.toISOString().slice(0, 10);
-    const [company, profitLoss, balanceSheet] = await Promise.all([
+    const [company, profitLoss, balanceSheet, bankQuery, invoiceQuery, billQuery] = await Promise.all([
       qboGet<{ CompanyInfo?: { CompanyName?: string } }>(connection.realm_id, accessToken, `companyinfo/${connection.realm_id}`),
       qboGet<Report>(connection.realm_id, accessToken, "reports/ProfitAndLoss", { start_date: startDate, end_date: endDate, accounting_method: "Accrual" }),
       qboGet<Report>(connection.realm_id, accessToken, "reports/BalanceSheet", { end_date: endDate, accounting_method: "Accrual" }),
+      qboGet<QueryResponse<"Account", QboAccount>>(connection.realm_id, accessToken, "query", { query: "SELECT Id, Name, AccountSubType, CurrentBalance FROM Account WHERE AccountType = 'Bank' MAXRESULTS 100" }),
+      qboGet<QueryResponse<"Invoice", QboInvoice>>(connection.realm_id, accessToken, "query", { query: "SELECT Id, DocNumber, CustomerRef, DueDate, Balance FROM Invoice WHERE Balance > '0' MAXRESULTS 100" }),
+      qboGet<QueryResponse<"Bill", QboBill>>(connection.realm_id, accessToken, "query", { query: "SELECT Id, DocNumber, VendorRef, DueDate, Balance FROM Bill WHERE Balance > '0' MAXRESULTS 100" }),
     ]);
 
     const summary = {
@@ -95,7 +103,18 @@ export async function POST() {
       synced_at: summary.syncedAt,
     });
     if (snapshotError) throw new Error(`The QuickBooks data was read, but its history could not be saved: ${snapshotError.message}`);
-    await supabase.from("qbo_sync_log").insert({ sync_type: "financial_summary", status: "completed", records_processed: 3, message: `Read-only summary synced for ${summary.companyName}.`, completed_at: summary.syncedAt });
+    const cashItems = [
+      ...(bankQuery.QueryResponse?.Account ?? []).map((item) => ({ realm_id: connection.realm_id, item_type: "bank", qbo_id: item.Id, name: item.Name ?? "Bank account", document_number: null, due_date: null, balance: Number(item.CurrentBalance ?? 0), account_subtype: item.AccountSubType ?? null, active: true, synced_at: summary.syncedAt })),
+      ...(invoiceQuery.QueryResponse?.Invoice ?? []).map((item) => ({ realm_id: connection.realm_id, item_type: "receivable", qbo_id: item.Id, name: item.CustomerRef?.name ?? "Customer", document_number: item.DocNumber ?? null, due_date: item.DueDate ?? null, balance: Number(item.Balance ?? 0), account_subtype: null, active: true, synced_at: summary.syncedAt })),
+      ...(billQuery.QueryResponse?.Bill ?? []).map((item) => ({ realm_id: connection.realm_id, item_type: "bill", qbo_id: item.Id, name: item.VendorRef?.name ?? "Vendor", document_number: item.DocNumber ?? null, due_date: item.DueDate ?? null, balance: Number(item.Balance ?? 0), account_subtype: null, active: true, synced_at: summary.syncedAt })),
+    ];
+    const { error: deactivateError } = await supabase.from("qbo_cash_items").update({ active: false, synced_at: summary.syncedAt }).eq("realm_id", connection.realm_id);
+    if (deactivateError) throw new Error(`The cash outlook could not be refreshed: ${deactivateError.message}`);
+    if (cashItems.length) {
+      const { error: cashError } = await supabase.from("qbo_cash_items").upsert(cashItems, { onConflict: "realm_id,item_type,qbo_id" });
+      if (cashError) throw new Error(`The cash outlook could not be saved: ${cashError.message}`);
+    }
+    await supabase.from("qbo_sync_log").insert({ sync_type: "financial_summary", status: "completed", records_processed: 3 + cashItems.length, message: `Read-only summary and 30-day cash outlook synced for ${summary.companyName}.`, completed_at: summary.syncedAt });
     return NextResponse.json(summary);
   } catch (error) {
     const message = error instanceof Error ? error.message : "QuickBooks sync failed.";
