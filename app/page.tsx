@@ -36,7 +36,7 @@ export default async function Home() {
     };
   });
   const playerOptions = rosterPlayers.map((player) => ({ id: player.id, first_name: player.firstName, last_name: player.lastName }));
-  const { data: teamRows } = await supabase.from("teams").select("id, name, age_group, seasons(name, is_current), team_coaches(role, coaches(name)), players(id)").order("name");
+  const { data: teamRows } = await supabase.from("teams").select("id, name, age_group, season_id, seasons(name, is_current), team_coaches(role, coaches(name)), players(id)").order("name");
   const teams: TeamSummary[] = (teamRows ?? []).map((row) => {
     const seasonValue = row.seasons as unknown as { name?: string; is_current?: boolean } | Array<{ name?: string; is_current?: boolean }> | null;
     const season = Array.isArray(seasonValue) ? seasonValue[0] : seasonValue;
@@ -47,6 +47,7 @@ export default async function Home() {
       name: row.name,
       ageGroup: row.age_group,
       season: season?.name ?? null,
+      seasonId: row.season_id,
       isCurrent: season?.is_current ?? false,
       playerCount: playersValue?.length ?? 0,
       coaches: assignments.map((assignment) => {
@@ -55,14 +56,15 @@ export default async function Home() {
       }),
     };
   });
-  const { data: coachRows } = await supabase.from("coaches").select("id, name, email, team_coaches(teams(name))").order("name");
+  const { data: coachRows } = await supabase.from("coaches").select("id, name, email, phone, team_coaches(teams(name))").order("name");
   const coaches: CoachSummary[] = (coachRows ?? []).map((row) => {
     const assignments = (row.team_coaches ?? []) as unknown as Array<{ teams: { name?: string } | Array<{ name?: string }> | null }>;
-    return { id: row.id, name: row.name, email: row.email, teams: assignments.map((assignment) => {
+    return { id: row.id, name: row.name, email: row.email, phone: row.phone, teams: assignments.map((assignment) => {
       const team = Array.isArray(assignment.teams) ? assignment.teams[0] : assignment.teams;
       return team?.name;
     }).filter((name): name is string => Boolean(name)) };
   });
+  const { data: seasonRows } = await supabase.from("seasons").select("id, name").order("start_date", { ascending: false });
 
   return (
     <main className="app-shell">
@@ -75,7 +77,7 @@ export default async function Home() {
         <header><div><p className="eyebrow">Operations overview</p><h1>Good work starts with a clear court.</h1></div><span className="secure"><Shield size={15}/> Secure workspace</span></header>
         <section className="hero" id="overview"><div><p>INVICTUS HUB</p><h2>One view of every player, team, and payment.</h2><span>Connected to your permission-controlled Supabase foundation.</span></div></section>
         <PlayerRoster players={rosterPlayers} showFinancials={showFinancials} />
-        <TeamOperations teams={teams} coaches={coaches} />
+        <TeamOperations teams={teams} coaches={coaches} seasons={seasonRows ?? []} canEdit={["owner_admin", "program_director"].includes(profile?.role ?? "")} canCreateSeason={profile?.role === "owner_admin"} />
         <div className="dashboard-grid">
           <section className="status-card"><p className="eyebrow">Foundation status</p><h2>Core systems ready</h2><ul><li><span>Supabase authentication</span><b>Connected</b></li><li><span>Role-based access</span><b>Enforced</b></li><li><span>Stripe connection</span><b className="test">Test mode</b></li></ul></section>
           {profile?.role === "owner_admin" ? <ReconciliationCard players={playerOptions} /> : <section className="reconcile-card"><p className="eyebrow">Billing</p><h2>Billing status is role protected</h2><p className="muted">Financial reconciliation is available to Owner/Admin users.</p></section>}

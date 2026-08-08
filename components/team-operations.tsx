@@ -1,52 +1,26 @@
 "use client";
-
 import { useMemo, useState } from "react";
 import { Search, Shield, UsersRound } from "lucide-react";
 
-export type TeamSummary = {
-  id: string;
-  name: string;
-  ageGroup: string | null;
-  season: string | null;
-  isCurrent: boolean;
-  playerCount: number;
-  coaches: Array<{ name: string; role: string }>;
-};
+export type TeamSummary = { id:string; name:string; ageGroup:string|null; season:string|null; seasonId:string|null; isCurrent:boolean; playerCount:number; coaches:Array<{name:string;role:string}> };
+export type CoachSummary = { id:string; name:string; email:string|null; phone:string|null; teams:string[] };
+type SeasonOption = { id:string; name:string };
 
-export type CoachSummary = {
-  id: string;
-  name: string;
-  email: string | null;
-  teams: string[];
-};
-
-export function TeamOperations({ teams, coaches }: { teams: TeamSummary[]; coaches: CoachSummary[] }) {
-  const [query, setQuery] = useState("");
-  const filteredTeams = useMemo(() => teams.filter((team) =>
-    `${team.name} ${team.ageGroup ?? ""} ${team.season ?? ""} ${team.coaches.map((coach) => coach.name).join(" ")}`
-      .toLowerCase().includes(query.toLowerCase()),
-  ), [teams, query]);
-
-  return (
-    <section className="team-ops" id="teams">
-      <div className="roster-heading">
-        <div><p className="eyebrow">Program operations</p><h2>Teams &amp; coaches</h2><p className="muted">Season structure, staff assignments, and roster capacity.</p></div>
-        <div className="team-totals"><span><strong>{teams.length}</strong> teams</span><span><strong>{coaches.length}</strong> coaches</span></div>
-      </div>
-      <div className="roster-tools team-search"><label><Search size={16}/><input aria-label="Search teams and coaches" placeholder="Search team, season, or coach" value={query} onChange={(event) => setQuery(event.target.value)} /></label></div>
-      {filteredTeams.length ? <div className="team-grid">{filteredTeams.map((team) => (
-        <article className="team-card" key={team.id}>
-          <div className="team-card-top"><div><span className={team.isCurrent ? "season-tag current" : "season-tag"}>{team.season ?? "No season"}</span><h3>{team.name}</h3><p>{team.ageGroup ?? "Age group not set"}</p></div><div className="player-count"><UsersRound size={16}/><strong>{team.playerCount}</strong><span>players</span></div></div>
-          <div className="coach-assignments">
-            <span>Coaching staff</span>
-            {team.coaches.length ? team.coaches.map((coach, index) => <div key={`${coach.name}-${index}`}><Shield size={14}/><strong>{coach.name}</strong><small>{coach.role}</small></div>) : <p>No coach assigned</p>}
-          </div>
-        </article>
-      ))}</div> : <div className="empty-roster"><UsersRound size={24}/><strong>No teams match this view</strong><span>Try another team, season, or coach name.</span></div>}
-      <div className="coach-directory">
-        <h3>Coach directory</h3>
-        {coaches.length ? <div>{coaches.map((coach) => <article key={coach.id}><div className="coach-avatar">{coach.name.split(" ").map((part) => part[0]).slice(0, 2).join("")}</div><div><strong>{coach.name}</strong><span>{coach.email ?? "No email on file"}</span></div><small>{coach.teams.length ? coach.teams.join(" · ") : "Unassigned"}</small></article>)}</div> : <p className="muted">No coach records are available yet.</p>}
-      </div>
-    </section>
-  );
+export function TeamOperations({ teams, coaches, seasons, canEdit, canCreateSeason }: { teams:TeamSummary[]; coaches:CoachSummary[]; seasons:SeasonOption[]; canEdit:boolean; canCreateSeason:boolean }) {
+  const [query,setQuery]=useState(""); const [panel,setPanel]=useState<"team"|"coach"|"assign"|"season"|null>(null); const [team,setTeam]=useState<TeamSummary|null>(null); const [coach,setCoach]=useState<CoachSummary|null>(null); const [message,setMessage]=useState(""); const [saving,setSaving]=useState(false);
+  const filtered=useMemo(()=>teams.filter(t=>`${t.name} ${t.ageGroup??""} ${t.season??""} ${t.coaches.map(c=>c.name).join(" ")}`.toLowerCase().includes(query.toLowerCase())),[teams,query]);
+  async function submit(event:React.FormEvent<HTMLFormElement>){event.preventDefault();setSaving(true);setMessage("");const payload=Object.fromEntries(new FormData(event.currentTarget).entries());try{const response=await fetch("/api/operations",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});const result=await response.json();if(!response.ok)throw new Error(result.error??"Unable to save.");window.location.reload();}catch(error){setMessage(error instanceof Error?error.message:"Unable to save.");setSaving(false)}}
+  function openTeam(value?:TeamSummary){setTeam(value??null);setPanel("team");setMessage("")} function openCoach(value?:CoachSummary){setCoach(value??null);setPanel("coach");setMessage("")}
+  return <section className="team-ops" id="teams">
+    <div className="roster-heading"><div><p className="eyebrow">Program operations</p><h2>Teams &amp; coaches</h2><p className="muted">Season structure, staff assignments, and roster capacity.</p></div><div className="team-totals"><span><strong>{teams.length}</strong> teams</span><span><strong>{coaches.length}</strong> coaches</span></div></div>
+    {canEdit?<div className="operation-actions"><button onClick={()=>openTeam()}>Add team</button><button onClick={()=>openCoach()}>Add coach</button><button onClick={()=>setPanel("assign")}>Assign coach</button>{canCreateSeason?<button onClick={()=>setPanel("season")}>Add season</button>:null}</div>:null}
+    {panel?<div className="operation-panel"><div className="panel-title"><h3>{panel==="team"?`${team?"Edit":"Add"} team`:panel==="coach"?`${coach?"Edit":"Add"} coach`:panel==="assign"?"Assign coach":"Add season"}</h3><button aria-label="Close form" onClick={()=>setPanel(null)}>×</button></div>
+      {panel==="team"?<form onSubmit={submit}><input type="hidden" name="action" value="save_team"/><input type="hidden" name="id" value={team?.id??""}/><label>Team name<input name="name" defaultValue={team?.name??""} required/></label><label>Age group<input name="ageGroup" defaultValue={team?.ageGroup??""}/></label><label>Season<select name="seasonId" defaultValue={team?.seasonId??""} required><option value="">Choose season…</option>{seasons.map(s=><option value={s.id} key={s.id}>{s.name}</option>)}</select></label><button disabled={saving}>{saving?"Saving…":"Save team"}</button></form>:null}
+      {panel==="coach"?<form onSubmit={submit}><input type="hidden" name="action" value="save_coach"/><input type="hidden" name="id" value={coach?.id??""}/><label>Name<input name="name" defaultValue={coach?.name??""} required/></label><label>Email<input name="email" type="email" defaultValue={coach?.email??""}/></label><label>Phone<input name="phone" defaultValue={coach?.phone??""}/></label><button disabled={saving}>{saving?"Saving…":"Save coach"}</button></form>:null}
+      {panel==="assign"?<form onSubmit={submit}><input type="hidden" name="action" value="assign_coach"/><label>Team<select name="teamId" required><option value="">Choose team…</option>{teams.map(t=><option value={t.id} key={t.id}>{t.name}</option>)}</select></label><label>Coach<select name="coachId" required><option value="">Choose coach…</option>{coaches.map(c=><option value={c.id} key={c.id}>{c.name}</option>)}</select></label><label>Role<select name="role"><option value="head">Head coach</option><option value="assistant">Assistant coach</option></select></label><button disabled={saving}>{saving?"Assigning…":"Assign coach"}</button></form>:null}
+      {panel==="season"?<form onSubmit={submit}><input type="hidden" name="action" value="create_season"/><label>Season name<input name="name" placeholder="2026–2027" required/></label><label>Start date<input name="startDate" type="date"/></label><label>End date<input name="endDate" type="date"/></label><button disabled={saving}>{saving?"Saving…":"Create season"}</button></form>:null}{message?<p className="error">{message}</p>:null}</div>:null}
+    <div className="roster-tools team-search"><label><Search size={16}/><input aria-label="Search teams and coaches" placeholder="Search team, season, or coach" value={query} onChange={e=>setQuery(e.target.value)}/></label></div>
+    {filtered.length?<div className="team-grid">{filtered.map(t=><article className="team-card" key={t.id}><div className="team-card-top"><div><span className={t.isCurrent?"season-tag current":"season-tag"}>{t.season??"No season"}</span><h3>{t.name}</h3><p>{t.ageGroup??"Age group not set"}</p></div><div className="player-count"><UsersRound size={16}/><strong>{t.playerCount}</strong><span>players</span></div></div><div className="coach-assignments"><span>Coaching staff</span>{t.coaches.length?t.coaches.map((c,i)=><div key={`${c.name}-${i}`}><Shield size={14}/><strong>{c.name}</strong><small>{c.role}</small></div>):<p>No coach assigned</p>}</div>{canEdit?<button className="edit-link" onClick={()=>openTeam(t)}>Edit team</button>:null}</article>)}</div>:<div className="empty-roster"><UsersRound size={24}/><strong>No teams match this view</strong><span>Try another team, season, or coach name.</span></div>}
+    <div className="coach-directory"><h3>Coach directory</h3>{coaches.length?<div>{coaches.map(c=><article key={c.id}><div className="coach-avatar">{c.name.split(" ").map(p=>p[0]).slice(0,2).join("")}</div><div><strong>{c.name}</strong><span>{c.email??"No email on file"}</span></div><small>{c.teams.length?c.teams.join(" · "):"Unassigned"}</small>{canEdit?<button className="edit-link" onClick={()=>openCoach(c)}>Edit</button>:null}</article>)}</div>:<p className="muted">No coach records are available yet.</p>}</div>
+  </section>
 }
