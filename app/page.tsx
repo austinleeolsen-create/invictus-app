@@ -6,6 +6,7 @@ import { ReconciliationCard } from "@/components/reconciliation-card";
 import { PlayerRoster, type RosterPlayer } from "@/components/player-roster";
 import { TeamOperations, type TeamSummary, type CoachSummary } from "@/components/team-operations";
 import { QboConnectionCard } from "@/components/qbo-connection-card";
+import { CashPlanner, type CashPlan } from "@/components/cash-planner";
 
 export default async function Home() {
   const supabase = await createSupabaseServerClient();
@@ -85,6 +86,15 @@ export default async function Home() {
     totalEquity: row.total_equity,
     syncedAt: row.synced_at,
   }));
+  const currentMonth = `${new Date().toISOString().slice(0, 7)}-01`;
+  const { data: cashPlanRow } = profile?.role === "owner_admin"
+    ? await supabase.from("monthly_cash_plans").select("plan_month, other_revenue, rent, payroll, utilities, insurance, programs_and_events, other_expenses, safety_cushion, notes").eq("plan_month", currentMonth).maybeSingle()
+    : { data: null };
+  const { data: activeBillingRows } = profile?.role === "owner_admin"
+    ? await supabase.from("player_billing").select("monthly_tuition, billing_status").eq("billing_status", "active")
+    : { data: null };
+  const expectedTuition = (activeBillingRows ?? []).reduce((sum, row) => sum + Number(row.monthly_tuition ?? 0), 0);
+  const startingCash = Number(qboHistory[0]?.cashBalance ?? 0);
 
   return (
     <main className="app-shell">
@@ -102,6 +112,7 @@ export default async function Home() {
           <section className="status-card"><p className="eyebrow">Foundation status</p><h2>Core systems ready</h2><ul><li><span>Supabase authentication</span><b>Connected</b></li><li><span>Role-based access</span><b>Enforced</b></li><li><span>Stripe connection</span><b className="test">Test mode</b></li></ul></section>
           {profile?.role === "owner_admin" ? <ReconciliationCard players={playerOptions} /> : <section className="reconcile-card"><p className="eyebrow">Billing</p><h2>Billing status is role protected</h2><p className="muted">Financial reconciliation is available to Owner/Admin users.</p></section>}
         </div>
+        {profile?.role === "owner_admin" ? <CashPlanner startingCash={startingCash} expectedTuition={expectedTuition} initialPlan={cashPlanRow as CashPlan | null} currentMonth={currentMonth} /> : null}
         {profile?.role === "owner_admin" ? <QboConnectionCard connected={Boolean(qboConnection)} environment={qboConnection?.environment} initialHistory={qboHistory} /> : null}
       </div>
     </main>
