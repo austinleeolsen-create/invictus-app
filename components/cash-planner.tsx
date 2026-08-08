@@ -19,6 +19,7 @@ export function CashPlanner({ startingCash, expectedTuition, initialPlan, curren
     const extra = projected - Number(plan.safety_cushion);
     return { revenue, expenses, projected, extra };
   }, [plan, startingCash, expectedTuition]);
+  const planReady = totals.expenses > 0 && Number(plan.safety_cushion) > 0;
   const update = (key: keyof CashPlan, value: string) => setPlan((current) => ({ ...current, [key]: key === "notes" ? value : Number(value) || 0 }));
   async function save() {
     setSaving(true); setMessage("");
@@ -37,7 +38,7 @@ export function CashPlanner({ startingCash, expectedTuition, initialPlan, curren
       <div><span>Money in the bank now</span><strong>{currency(startingCash)}</strong><small>Latest QuickBooks sync</small></div>
       <div><span>Expected player payments</span><strong>{currency(expectedTuition)}</strong><small>Active Stripe-linked tuition</small></div>
       <div><span>Projected month-end cash</span><strong>{currency(totals.projected)}</strong><small>After the expenses below</small></div>
-      <div className={totals.extra >= 0 ? "safe-cash" : "cash-warning"}><span>{totals.extra >= 0 ? "Extra cash after safety cushion" : "Expected cash shortage"}</span><strong>{currency(Math.abs(totals.extra))}</strong><small>{totals.extra >= 0 ? "Potentially available for repairs" : "Costs exceed the safe amount"}</small></div>
+      <div className={!planReady ? "cash-incomplete" : totals.extra >= 0 ? "safe-cash" : "cash-warning"}><span>{!planReady ? "Extra cash not calculated yet" : totals.extra >= 0 ? "Extra cash after safety cushion" : "Expected cash shortage"}</span><strong>{planReady ? currency(Math.abs(totals.extra)) : "Finish the plan"}</strong><small>{!planReady ? "Enter monthly costs and a safety cushion" : totals.extra >= 0 ? "Potentially available for repairs" : "Costs exceed the safe amount"}</small></div>
     </div>
     <div className="cash-form-grid">
       <label>Other expected income<input type="number" min="0" step="0.01" value={plan.other_revenue} onChange={(e) => update("other_revenue", e.target.value)}/></label>
@@ -45,6 +46,7 @@ export function CashPlanner({ startingCash, expectedTuition, initialPlan, curren
       <label>Minimum safety cushion<input type="number" min="0" step="0.01" value={plan.safety_cushion} onChange={(e) => update("safety_cushion", e.target.value)}/></label>
     </div>
     <div className="cash-equation"><span>Expected money in <b>{currency(totals.revenue)}</b></span><span>Monthly costs <b>{currency(totals.expenses)}</b></span></div>
+    {!planReady ? <p className="cash-plan-warning">Do not treat the projected balance as extra cash yet. Add this month’s expenses and the minimum amount that must stay in the bank.</p> : null}
     <label className="cash-notes">Notes<textarea value={plan.notes ?? ""} onChange={(e) => update("notes", e.target.value)} placeholder="Anything unusual this month?"/></label>
     <button className="secondary" onClick={save} disabled={saving}><Save size={15}/>{saving ? "Saving…" : "Save this month’s plan"}</button>
     {message ? <p className="plan-message">{message}</p> : null}
