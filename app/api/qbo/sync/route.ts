@@ -79,6 +79,22 @@ export async function POST() {
       totalEquity: findAmount(balanceSheet, ["Total Equity"]),
       syncedAt: new Date().toISOString(),
     };
+    const { error: snapshotError } = await supabase.from("qbo_financial_snapshots").insert({
+      realm_id: connection.realm_id,
+      company_name: summary.companyName,
+      report_start: summary.startDate,
+      report_end: summary.endDate,
+      total_income: summary.totalIncome,
+      total_expenses: summary.totalExpenses,
+      net_income: summary.netIncome,
+      cash_balance: summary.cashBalance,
+      total_assets: summary.totalAssets,
+      total_liabilities: summary.totalLiabilities,
+      total_equity: summary.totalEquity,
+      synced_by: user.id,
+      synced_at: summary.syncedAt,
+    });
+    if (snapshotError) throw new Error(`The QuickBooks data was read, but its history could not be saved: ${snapshotError.message}`);
     await supabase.from("qbo_sync_log").insert({ sync_type: "financial_summary", status: "completed", records_processed: 3, message: `Read-only summary synced for ${summary.companyName}.`, completed_at: summary.syncedAt });
     return NextResponse.json(summary);
   } catch (error) {

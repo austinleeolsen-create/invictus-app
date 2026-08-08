@@ -69,6 +69,22 @@ export default async function Home() {
   const { data: qboConnection } = profile?.role === "owner_admin"
     ? await supabase.from("qbo_connections").select("environment").limit(1).maybeSingle()
     : { data: null };
+  const { data: qboSnapshotRows } = profile?.role === "owner_admin"
+    ? await supabase.from("qbo_financial_snapshots").select("company_name, report_start, report_end, total_income, total_expenses, net_income, cash_balance, total_assets, total_liabilities, total_equity, synced_at").order("synced_at", { ascending: false }).limit(12)
+    : { data: null };
+  const qboHistory = (qboSnapshotRows ?? []).map((row) => ({
+    companyName: row.company_name,
+    startDate: row.report_start,
+    endDate: row.report_end,
+    totalIncome: row.total_income,
+    totalExpenses: row.total_expenses,
+    netIncome: row.net_income,
+    cashBalance: row.cash_balance,
+    totalAssets: row.total_assets,
+    totalLiabilities: row.total_liabilities,
+    totalEquity: row.total_equity,
+    syncedAt: row.synced_at,
+  }));
 
   return (
     <main className="app-shell">
@@ -86,7 +102,7 @@ export default async function Home() {
           <section className="status-card"><p className="eyebrow">Foundation status</p><h2>Core systems ready</h2><ul><li><span>Supabase authentication</span><b>Connected</b></li><li><span>Role-based access</span><b>Enforced</b></li><li><span>Stripe connection</span><b className="test">Test mode</b></li></ul></section>
           {profile?.role === "owner_admin" ? <ReconciliationCard players={playerOptions} /> : <section className="reconcile-card"><p className="eyebrow">Billing</p><h2>Billing status is role protected</h2><p className="muted">Financial reconciliation is available to Owner/Admin users.</p></section>}
         </div>
-        {profile?.role === "owner_admin" ? <QboConnectionCard connected={Boolean(qboConnection)} environment={qboConnection?.environment} /> : null}
+        {profile?.role === "owner_admin" ? <QboConnectionCard connected={Boolean(qboConnection)} environment={qboConnection?.environment} initialHistory={qboHistory} /> : null}
       </div>
     </main>
   );
