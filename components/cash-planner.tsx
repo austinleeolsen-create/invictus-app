@@ -29,8 +29,9 @@ function MoneyInput({ value, onChange }: { value: number; onChange: (value: numb
   />;
 }
 
-export function CashPlanner({ startingCash, expectedTuition, initialPlan, currentMonth }: { startingCash: number; expectedTuition: number; initialPlan: CashPlan | null; currentMonth: string }) {
-  const [plan, setPlan] = useState(initialPlan ?? blank(currentMonth));
+export function CashPlanner({ startingCash, expectedTuition, payrollTotal, initialPlan, currentMonth }: { startingCash: number; expectedTuition: number; payrollTotal: number; initialPlan: CashPlan | null; currentMonth: string }) {
+  const [plan, setPlan] = useState({ ...(initialPlan ?? blank(currentMonth)), payroll: payrollTotal });
+  useEffect(() => setPlan((current) => ({ ...current, payroll: payrollTotal })), [payrollTotal]);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const totals = useMemo(() => {
@@ -63,7 +64,7 @@ export function CashPlanner({ startingCash, expectedTuition, initialPlan, curren
     </div>
     <div className="cash-form-grid">
       <label>Other expected income<MoneyInput value={plan.other_revenue} onChange={(value) => update("other_revenue", String(value))}/></label>
-      {fields.map((field) => <label key={field.key}>{field.label}<MoneyInput value={Number(plan[field.key] ?? 0)} onChange={(value) => update(field.key, String(value))}/></label>)}
+      {fields.map((field) => <label key={field.key}>{field.label}{field.key === "payroll" ? <><input value={displayAmount(payrollTotal)} readOnly/><small>From the saved payroll plan</small></> : <MoneyInput value={Number(plan[field.key] ?? 0)} onChange={(value) => update(field.key, String(value))}/>}</label>)}
       <label>Minimum safety cushion<MoneyInput value={plan.safety_cushion} onChange={(value) => update("safety_cushion", String(value))}/></label>
     </div>
     <div className="cash-equation"><span>Expected money in <b>{currency(totals.revenue)}</b></span><span>Monthly costs <b>{currency(totals.expenses)}</b></span></div>
