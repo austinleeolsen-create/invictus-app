@@ -5,6 +5,7 @@ import { signOut } from "./login/actions";
 import { ReconciliationCard } from "@/components/reconciliation-card";
 import { PlayerRoster, type RosterPlayer } from "@/components/player-roster";
 import { TeamOperations, type TeamSummary, type CoachSummary } from "@/components/team-operations";
+import { QboConnectionCard } from "@/components/qbo-connection-card";
 
 export default async function Home() {
   const supabase = await createSupabaseServerClient();
@@ -65,6 +66,9 @@ export default async function Home() {
     }).filter((name): name is string => Boolean(name)) };
   });
   const { data: seasonRows } = await supabase.from("seasons").select("id, name").order("start_date", { ascending: false });
+  const { data: qboConnection } = profile?.role === "owner_admin"
+    ? await supabase.from("qbo_connections").select("environment").limit(1).maybeSingle()
+    : { data: null };
 
   return (
     <main className="app-shell">
@@ -82,6 +86,7 @@ export default async function Home() {
           <section className="status-card"><p className="eyebrow">Foundation status</p><h2>Core systems ready</h2><ul><li><span>Supabase authentication</span><b>Connected</b></li><li><span>Role-based access</span><b>Enforced</b></li><li><span>Stripe connection</span><b className="test">Test mode</b></li></ul></section>
           {profile?.role === "owner_admin" ? <ReconciliationCard players={playerOptions} /> : <section className="reconcile-card"><p className="eyebrow">Billing</p><h2>Billing status is role protected</h2><p className="muted">Financial reconciliation is available to Owner/Admin users.</p></section>}
         </div>
+        {profile?.role === "owner_admin" ? <QboConnectionCard connected={Boolean(qboConnection)} environment={qboConnection?.environment} /> : null}
       </div>
     </main>
   );
