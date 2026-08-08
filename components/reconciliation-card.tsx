@@ -46,22 +46,22 @@ export function ReconciliationCard({ players }: { players: PlayerOption[] }) {
   return (
     <section className="reconcile-card" id="billing">
       <div className="card-heading">
-        <div><p className="eyebrow">Stripe test mode</p><h2>Billing reconciliation</h2></div>
+        <div><p className="eyebrow">Who still owes us?</p><h2>Player payments</h2></div>
         <ShieldCheck aria-hidden="true" />
       </div>
-      <p className="muted">Read-only check of Stripe subscriptions against player billing links.</p>
+      <p className="muted">Check which players are paid up and identify payments that still need to be matched to a player.</p>
       <button className="secondary" onClick={run} disabled={loading}>
         <RefreshCw size={16} className={loading ? "spin" : ""} />
-        {loading ? "Reconciling…" : "Run test reconciliation"}
+        {loading ? "Checking payments…" : "Check player payments"}
       </button>
       {error ? <p className="error" role="alert">{error}</p> : null}
       {result ? (
         <>
           <div className="result-grid">
-            <div><span>Active subscriptions</span><strong>{result.activeSubscriptions}</strong></div>
-            <div><span>Test MRR</span><strong>{result.activeMonthlyRecurringRevenue.toLocaleString("en-US", { style: "currency", currency: "USD" })}</strong></div>
-            <div><span>Linked</span><strong>{result.linkedSubscriptions}</strong></div>
-            <div><span>Needs matching</span><strong>{result.unmatchedSubscriptions.length}</strong></div>
+            <div><span>Paying monthly</span><strong>{result.activeSubscriptions}</strong></div>
+            <div><span>Expected this month</span><strong>{result.activeMonthlyRecurringRevenue.toLocaleString("en-US", { style: "currency", currency: "USD" })}</strong></div>
+            <div><span>Matched to players</span><strong>{result.linkedSubscriptions}</strong></div>
+            <div><span>Needs attention</span><strong>{result.unmatchedSubscriptions.length}</strong></div>
           </div>
           {result.unmatchedSubscriptions.length ? (
             <div className="match-list">
