@@ -7,6 +7,7 @@ import { PlayerRoster, type RosterPlayer } from "@/components/player-roster";
 import { TeamOperations, type TeamSummary, type CoachSummary } from "@/components/team-operations";
 import { QboConnectionCard } from "@/components/qbo-connection-card";
 import { CashPlanner, type CashPlan } from "@/components/cash-planner";
+import { PaymentFollowups, type FollowupPlayer } from "@/components/payment-followups";
 
 export default async function Home() {
   const supabase = await createSupabaseServerClient();
@@ -95,6 +96,14 @@ export default async function Home() {
     : { data: null };
   const expectedTuition = (activeBillingRows ?? []).reduce((sum, row) => sum + Number(row.monthly_tuition ?? 0), 0);
   const startingCash = Number(qboHistory[0]?.cashBalance ?? 0);
+  const { data: followupRows } = profile?.role === "owner_admin"
+    ? await supabase.from("payment_followups").select("player_id, status, note").eq("followup_month", currentMonth)
+    : { data: null };
+  const followupByPlayer = new Map((followupRows ?? []).map((row) => [row.player_id, row]));
+  const paymentFollowups: FollowupPlayer[] = rosterPlayers.filter((player) => Number(player.openBalance ?? 0) > 0 || player.billingStatus === "past_due").map((player) => {
+    const followup = followupByPlayer.get(player.id);
+    return { playerId: player.id, name: `${player.firstName} ${player.lastName}`, team: player.team, amount: Number(player.openBalance ?? player.monthlyTuition ?? 0), billingStatus: player.billingStatus ?? "open", followupMonth: currentMonth, status: followup?.status ?? "not_contacted", note: followup?.note ?? "" };
+  });
 
   return (
     <main className="app-shell">
@@ -112,6 +121,7 @@ export default async function Home() {
           <section className="status-card"><p className="eyebrow">Foundation status</p><h2>Core systems ready</h2><ul><li><span>Supabase authentication</span><b>Connected</b></li><li><span>Role-based access</span><b>Enforced</b></li><li><span>Stripe connection</span><b className="test">Test mode</b></li></ul></section>
           {profile?.role === "owner_admin" ? <ReconciliationCard players={playerOptions} /> : <section className="reconcile-card"><p className="eyebrow">Billing</p><h2>Billing status is role protected</h2><p className="muted">Financial reconciliation is available to Owner/Admin users.</p></section>}
         </div>
+        {profile?.role === "owner_admin" ? <PaymentFollowups initialRows={paymentFollowups} /> : null}
         {profile?.role === "owner_admin" ? <CashPlanner startingCash={startingCash} expectedTuition={expectedTuition} initialPlan={cashPlanRow as CashPlan | null} currentMonth={currentMonth} /> : null}
         {profile?.role === "owner_admin" ? <QboConnectionCard connected={Boolean(qboConnection)} environment={qboConnection?.environment} initialHistory={qboHistory} /> : null}
       </div>
