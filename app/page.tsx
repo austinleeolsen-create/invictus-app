@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { Users, UsersRound, WalletCards, Shield, Activity, Building2, Hammer, Landmark, BadgeDollarSign, BookOpenCheck } from "lucide-react";
+import { Users, UsersRound, WalletCards, Shield, Activity, Building2, Hammer, Landmark, BadgeDollarSign, BookOpenCheck, Plane } from "lucide-react";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { signOut } from "./login/actions";
 import { ReconciliationCard } from "@/components/reconciliation-card";
@@ -13,6 +13,7 @@ import { PayrollPlanner, type PayrollRow } from "@/components/payroll-planner";
 import { TeamHealth, type TeamHealthRow } from "@/components/team-health";
 import { SponsorPipeline, type SponsorRow } from "@/components/sponsor-pipeline";
 import { FacilityProjects, type FacilityProject } from "@/components/facility-projects";
+import { TravelPlanner, type TravelTrip } from "@/components/travel-planner";
 
 export default async function Home({ searchParams }: { searchParams: Promise<{ view?: string }> }) {
   const supabase = await createSupabaseServerClient();
@@ -22,14 +23,14 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ v
   const showFinancials = profile?.role === "owner_admin";
   const requestedView = (await searchParams).view ?? "overview";
   const generalViews = ["overview", "players", "teams"];
-  const financialViews = ["billing", "cash", "payroll", "sponsors", "facility", "quickbooks"];
+  const financialViews = ["billing", "cash", "payroll", "travel", "sponsors", "facility", "quickbooks"];
   const allowedViews = showFinancials ? [...generalViews, ...financialViews] : generalViews;
   const view = allowedViews.includes(requestedView) ? requestedView : "overview";
   const { data: playerRows } = showFinancials
-    ? await supabase.from("players").select("id, first_name, last_name, grade, jersey, status, billing_status, teams(name), player_billing(monthly_tuition, open_balance, billing_status), player_profile_details(parent_name, parent_email, parent_phone, emergency_contact, coach_notes, admin_notes)").order("last_name")
-    : await supabase.from("players").select("id, first_name, last_name, grade, jersey, status, billing_status, teams(name)").order("last_name");
+    ? await supabase.from("players").select("id, first_name, last_name, grade, jersey, status, billing_status, teams(id, name), player_billing(monthly_tuition, open_balance, billing_status), player_profile_details(parent_name, parent_email, parent_phone, emergency_contact, coach_notes, admin_notes)").order("last_name")
+    : await supabase.from("players").select("id, first_name, last_name, grade, jersey, status, billing_status, teams(id, name)").order("last_name");
   const rosterPlayers: RosterPlayer[] = (playerRows ?? []).map((row) => {
-    const teamValue = row.teams as unknown as { name?: string } | Array<{ name?: string }> | null;
+    const teamValue = row.teams as unknown as { id?: string; name?: string } | Array<{ id?: string; name?: string }> | null;
     const team = Array.isArray(teamValue) ? teamValue[0]?.name : teamValue?.name;
     const billingValue = "player_billing" in row
       ? row.player_billing as unknown as { monthly_tuition?: number; open_balance?: number; billing_status?: string } | Array<{ monthly_tuition?: number; open_balance?: number; billing_status?: string }> | null
@@ -44,6 +45,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ v
       grade: row.grade,
       jersey: row.jersey,
       team: team ?? null,
+      teamId: (Array.isArray(teamValue) ? teamValue[0]?.id : teamValue?.id) ?? null,
       status: row.status,
       billingStatus: billing?.billing_status ?? row.billing_status,
       monthlyTuition: billing?.monthly_tuition ?? null,
@@ -156,24 +158,27 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ v
     ? await supabase.from("facility_projects").select("id, name, priority, status, estimated_cost, reserved_amount, target_date, notes").order("created_at")
     : { data: null };
   const facilityProjects: FacilityProject[] = (facilityRowsData ?? []).map((row) => ({ id: row.id, name: row.name, priority: row.priority, status: row.status, estimatedCost: Number(row.estimated_cost ?? 0), reservedAmount: Number(row.reserved_amount ?? 0), targetDate: row.target_date ?? "", notes: row.notes ?? "" }));
+  const { data: travelRowsData } = profile?.role === "owner_admin" ? await supabase.from("travel_trips").select("id, name, team_id, location, start_date, end_date, status, tournament_fee, transport_cost, hotel_cost, meal_cost, other_cost, family_charge, notes, teams(name), travel_participants(player_id, attendance, amount_due, amount_paid, contact_status, room_transport_notes, players(first_name, last_name))").order("start_date", { ascending: true, nullsFirst: false }) : { data: null };
+  const travelTrips: TravelTrip[] = (travelRowsData ?? []).map((row) => { const teamValue=row.teams as unknown as {name?:string}|Array<{name?:string}>|null;const team=Array.isArray(teamValue)?teamValue[0]:teamValue;const participants=(row.travel_participants??[]) as unknown as Array<{player_id:string;attendance:string;amount_due:number;amount_paid:number;contact_status:string;room_transport_notes:string|null;players:{first_name?:string;last_name?:string}|Array<{first_name?:string;last_name?:string}>|null}>;return{id:row.id,name:row.name,teamId:row.team_id??"",teamName:team?.name??"",location:row.location??"",startDate:row.start_date??"",endDate:row.end_date??"",status:row.status,tournamentFee:Number(row.tournament_fee),transportCost:Number(row.transport_cost),hotelCost:Number(row.hotel_cost),mealCost:Number(row.meal_cost),otherCost:Number(row.other_cost),familyCharge:Number(row.family_charge),notes:row.notes??"",participants:participants.map(item=>{const player=Array.isArray(item.players)?item.players[0]:item.players;return{playerId:item.player_id,name:`${player?.first_name??""} ${player?.last_name??""}`.trim(),attendance:item.attendance,amountDue:Number(item.amount_due),amountPaid:Number(item.amount_paid),contactStatus:item.contact_status,notes:item.room_transport_notes??""}})}});
 
   const titles: Record<string, { eyebrow: string; title: string }> = {
-    overview: { eyebrow: "Operations overview", title: "Good work starts with a clear court." }, players: { eyebrow: "Player operations", title: "Players and payment status." }, teams: { eyebrow: "Program operations", title: "Teams, coaches, and team health." }, billing: { eyebrow: "Tuition collections", title: "Who has paid—and who needs a call?" }, cash: { eyebrow: "Cash planning", title: "Can we pay the bills and still breathe?" }, payroll: { eyebrow: "Staff planning", title: "Hours, teams, and expected pay." }, sponsors: { eyebrow: "Community support", title: "Sponsors, commitments, and renewals." }, facility: { eyebrow: "Facility planning", title: "Fix the gym without risking the bills." }, quickbooks: { eyebrow: "Accounting connection", title: "QuickBooks data behind the simple numbers." },
+    overview: { eyebrow: "Operations overview", title: "Good work starts with a clear court." }, players: { eyebrow: "Player operations", title: "Players and payment status." }, teams: { eyebrow: "Program operations", title: "Teams, coaches, and team health." }, billing: { eyebrow: "Tuition collections", title: "Who has paid—and who needs a call?" }, cash: { eyebrow: "Cash planning", title: "Can we pay the bills and still breathe?" }, payroll: { eyebrow: "Staff planning", title: "Hours, teams, and expected pay." }, travel: { eyebrow: "Team travel", title: "Trips, players, payments, and logistics." }, sponsors: { eyebrow: "Community support", title: "Sponsors, commitments, and renewals." }, facility: { eyebrow: "Facility planning", title: "Fix the gym without risking the bills." }, quickbooks: { eyebrow: "Accounting connection", title: "QuickBooks data behind the simple numbers." },
   };
   const navLink = (key: string, label: string, icon: React.ReactNode) => <a className={view === key ? "active" : ""} href={`/?view=${key}`}>{icon}{label}</a>;
 
   return <main className="app-shell">
     <aside><div className="brand"><div className="brand-mark">I</div><div><strong>INVICTUS</strong><span>Operations Hub</span></div></div><nav>
       {navLink("overview", "Overview", <Activity size={18}/>)}{navLink("players", "Players", <Users size={18}/>)}{navLink("teams", "Teams", <UsersRound size={18}/>)}
-      {showFinancials ? <>{navLink("billing", "Billing", <WalletCards size={18}/>)}{navLink("cash", "Cash Plan", <BadgeDollarSign size={18}/>)}{navLink("payroll", "Payroll", <BookOpenCheck size={18}/>)}{navLink("sponsors", "Sponsors", <Building2 size={18}/>)}{navLink("facility", "Facility", <Hammer size={18}/>)}{navLink("quickbooks", "QuickBooks", <Landmark size={18}/>)}</> : null}
+      {showFinancials ? <>{navLink("billing", "Billing", <WalletCards size={18}/>)}{navLink("cash", "Cash Plan", <BadgeDollarSign size={18}/>)}{navLink("payroll", "Payroll", <BookOpenCheck size={18}/>)}{navLink("travel", "Travel", <Plane size={18}/>)}{navLink("sponsors", "Sponsors", <Building2 size={18}/>)}{navLink("facility", "Facility", <Hammer size={18}/>)}{navLink("quickbooks", "QuickBooks", <Landmark size={18}/>)}</> : null}
     </nav><div className="account"><span>{profile?.full_name ?? user.email}</span><small>{String(profile?.role ?? "member").replaceAll("_", " ")}</small><form action={signOut}><button>Sign out</button></form></div></aside>
     <div className="content"><header><div><p className="eyebrow">{titles[view].eyebrow}</p><h1>{titles[view].title}</h1></div><span className="secure"><Shield size={15}/> Secure workspace</span></header>
       {view === "overview" ? <><section className="hero"><div><p>INVICTUS HUB</p><h2>One clear place to run the club.</h2><span>Choose a section on the left to focus on one job at a time.</span></div></section><div className="dashboard-grid"><section className="status-card"><p className="eyebrow">Foundation status</p><h2>Core systems ready</h2><ul><li><span>Supabase authentication</span><b>Connected</b></li><li><span>Role-based access</span><b>Enforced</b></li><li><span>Stripe connection</span><b className="test">Test mode</b></li></ul></section><section className="status-card"><p className="eyebrow">Start here</p><h2>What needs attention?</h2><ul><li><span>Players needing payment follow-up</span><b>{paymentFollowups.length}</b></li><li><span>Open facility projects</span><b>{facilityProjects.filter((project) => project.status !== "completed").length}</b></li><li><span>Teams needing setup</span><b>{teamHealth.filter((team) => team.status === "setup").length}</b></li></ul></section></div>{showFinancials ? <TeamHealth teams={teamHealth}/> : null}</> : null}
-      {view === "players" ? <PlayerRoster players={rosterPlayers} showFinancials={showFinancials}/> : null}
+      {view === "players" ? <PlayerRoster players={rosterPlayers} showFinancials={showFinancials} teams={teams.map((team)=>({id:team.id,name:team.name,season:team.season}))}/> : null}
       {view === "teams" ? <TeamOperations teams={teams} coaches={coaches} seasons={seasonRows ?? []} canEdit={["owner_admin", "program_director"].includes(profile?.role ?? "")} canCreateSeason={profile?.role === "owner_admin"}/> : null}
       {view === "billing" && showFinancials ? <><ReconciliationCard players={playerOptions}/><PaymentFollowups initialRows={paymentFollowups}/></> : null}
       {view === "cash" && showFinancials ? <><CashOutlook items={cashItems}/><CashPlanner startingCash={startingCash} expectedTuition={expectedTuition} payrollTotal={payrollTotal} initialPlan={cashPlanRow as CashPlan|null} currentMonth={currentMonth}/></> : null}
       {view === "payroll" && showFinancials ? <PayrollPlanner initialRows={payrollRows} currentMonth={currentMonth} staffOptions={staffDirectory.map((staff)=>({id:staff.id,name:staff.name,role:staff.staffRole??"",isCoach:Boolean(staff.isCoach)}))}/> : null}
+      {view === "travel" && showFinancials ? <TravelPlanner initialTrips={travelTrips} teams={teams.map((team)=>({id:team.id,name:team.name}))}/> : null}
       {view === "sponsors" && showFinancials ? <SponsorPipeline initialRows={sponsors}/> : null}
       {view === "facility" && showFinancials ? <FacilityProjects initialRows={facilityProjects} safeCash={safeCash} planReady={planReady}/> : null}
       {view === "quickbooks" && showFinancials ? <QboConnectionCard connected={Boolean(qboConnection)} environment={qboConnection?.environment} initialHistory={qboHistory}/> : null}
