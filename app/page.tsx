@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { Users, UsersRound, WalletCards, Shield, Activity, Building2, Hammer, Landmark, BadgeDollarSign, BookOpenCheck, Plane, TrendingUp, CalendarClock, Clock3, Shirt, ClipboardCheck, CalendarCheck2, CalendarDays } from "lucide-react";
+import { Users, UsersRound, WalletCards, Shield, Activity, Building2, Hammer, Landmark, BadgeDollarSign, BookOpenCheck, Plane, TrendingUp, CalendarClock, Clock3, Shirt, ClipboardCheck, CalendarCheck2, CalendarDays, Bell } from "lucide-react";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { signOut } from "./login/actions";
 import { ReconciliationCard } from "@/components/reconciliation-card";
@@ -24,6 +24,7 @@ import { JerseyTracker, type JerseyRow } from "@/components/jersey-tracker";
 import { SeasonReadiness, type ReadinessRow } from "@/components/season-readiness";
 import { AttendanceReport } from "@/components/attendance-report";
 import { TeamCalendar, type TeamEvent } from "@/components/team-calendar";
+import { Announcements, type Announcement } from "@/components/announcements";
 
 export default async function Home({ searchParams }: { searchParams: Promise<{ view?: string }> }) {
   const supabase = await createSupabaseServerClient();
@@ -33,7 +34,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ v
   const showFinancials = profile?.role === "owner_admin";
   const isOperationsManager = ["owner_admin", "program_director"].includes(profile?.role ?? "");
   const requestedView = (await searchParams).view ?? "overview";
-  const generalViews = ["overview", "players", "teams", "calendar", "schedule", "time"];
+  const generalViews = ["overview", "announcements", "players", "teams", "calendar", "schedule", "time"];
   const managerViews = ["readiness", "jerseys", "attendance"];
   const financialViews = ["billing", "pricing", "cash", "payroll", "travel", "sponsors", "facility", "quickbooks"];
   const allowedViews = showFinancials ? [...generalViews, ...managerViews, ...financialViews] : isOperationsManager ? [...generalViews, ...managerViews] : generalViews;
@@ -100,6 +101,8 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ v
   const { data: seasonRows } = await supabase.from("seasons").select("id, name").order("start_date", { ascending: false });
   const { data: teamEventRows } = await supabase.from("team_events").select("id, team_id, event_type, title, opponent, location, start_at, end_at, status, arrival_minutes, notes, teams(name)").gte("start_at",new Date(new Date().setHours(0,0,0,0)).toISOString()).order("start_at");
   const teamEvents: TeamEvent[] = (teamEventRows ?? []).map((row) => {const teamValue=row.teams as unknown as {name?:string}|Array<{name?:string}>|null,team=Array.isArray(teamValue)?teamValue[0]:teamValue;return{id:row.id,teamId:row.team_id,teamName:team?.name??"Team",eventType:row.event_type,title:row.title,opponent:row.opponent??"",location:row.location??"",startAt:row.start_at,endAt:row.end_at??"",status:row.status,arrivalMinutes:Number(row.arrival_minutes??0),notes:row.notes??""}});
+  const { data: announcementRows } = await supabase.from("team_announcements").select("id, team_id, title, message, priority, expires_at, is_active, created_at, teams(name)").order("created_at",{ascending:false});
+  const announcements: Announcement[] = (announcementRows ?? []).map((row) => {const teamValue=row.teams as unknown as {name?:string}|Array<{name?:string}>|null,team=Array.isArray(teamValue)?teamValue[0]:teamValue;return{id:row.id,teamId:row.team_id??"",teamName:team?.name??"",title:row.title,message:row.message,priority:row.priority,expiresAt:row.expires_at??"",isActive:Boolean(row.is_active),createdAt:row.created_at}}).filter(item=>isOperationsManager||(item.isActive&&(!item.expiresAt||new Date(item.expiresAt)>new Date())));
   const { data: jerseyTrackingRows } = isOperationsManager
     ? await supabase.from("player_jersey_tracking").select("player_id, season_id, team_id, jersey_number, jersey_size, status, notes")
     : { data: null };
@@ -218,6 +221,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ v
     readiness: { eyebrow: "Season readiness", title: "Know who is cleared before practice starts." },
     attendance: { eyebrow: "Attendance", title: "See who is showing up—and who needs support." },
     calendar: { eyebrow: "Team calendar", title: "Know where every team needs to be." },
+    announcements: { eyebrow: "Announcements", title: "Keep every coach on the same page." },
     schedule: { eyebrow: "Court schedule", title: "Classes, availability, and coach PT." },
     overview: { eyebrow: "Operations overview", title: "Good work starts with a clear court." }, players: { eyebrow: "Player operations", title: "Players and payment status." }, teams: { eyebrow: "Program operations", title: "Teams, coaches, and team health." }, billing: { eyebrow: "Tuition collections", title: "Who has paid—and who needs a call?" }, pricing: { eyebrow:"Tuition planning", title:"Understand a price change before making it." }, cash: { eyebrow: "Cash planning", title: "Can we pay the bills and still breathe?" }, payroll: { eyebrow: "Staff planning", title: "Hours, teams, and expected pay." }, travel: { eyebrow: "Team travel", title: "Trips, players, payments, and logistics." }, sponsors: { eyebrow: "Community support", title: "Sponsors, commitments, and renewals." }, facility: { eyebrow: "Facility planning", title: "Fix the gym without risking the bills." }, quickbooks: { eyebrow: "Accounting connection", title: "QuickBooks data behind the simple numbers." },
   };
@@ -225,7 +229,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ v
 
   return <main className="app-shell">
     <aside><div className="brand"><div className="brand-mark">I</div><div><strong>INVICTUS</strong><span>Operations Hub</span></div></div><nav>
-      {navLink("overview", "Overview", <Activity size={18}/>)}{navLink("players", "Players", <Users size={18}/>)}{navLink("teams", "Teams", <UsersRound size={18}/>)}{navLink("calendar", "Team Calendar", <CalendarDays size={18}/>)}{isOperationsManager ? <>{navLink("readiness", "Season Setup", <ClipboardCheck size={18}/>)}{navLink("jerseys", "Jerseys", <Shirt size={18}/>)}{navLink("attendance", "Attendance", <CalendarCheck2 size={18}/>)}</> : null}{navLink("schedule", "Court Schedule", <CalendarClock size={18}/>)}{navLink("time", canManageSchedule?"Coach Time":"My Time", <Clock3 size={18}/>)}
+      {navLink("overview", "Overview", <Activity size={18}/>)}{navLink("announcements", "Announcements", <Bell size={18}/>)}{navLink("players", "Players", <Users size={18}/>)}{navLink("teams", "Teams", <UsersRound size={18}/>)}{navLink("calendar", "Team Calendar", <CalendarDays size={18}/>)}{isOperationsManager ? <>{navLink("readiness", "Season Setup", <ClipboardCheck size={18}/>)}{navLink("jerseys", "Jerseys", <Shirt size={18}/>)}{navLink("attendance", "Attendance", <CalendarCheck2 size={18}/>)}</> : null}{navLink("schedule", "Court Schedule", <CalendarClock size={18}/>)}{navLink("time", canManageSchedule?"Coach Time":"My Time", <Clock3 size={18}/>)}
       {showFinancials ? <>{navLink("billing", "Billing", <WalletCards size={18}/>)}{navLink("pricing", "Pricing", <TrendingUp size={18}/>)}{navLink("cash", "Cash Plan", <BadgeDollarSign size={18}/>)}{navLink("payroll", "Payroll", <BookOpenCheck size={18}/>)}{navLink("travel", "Travel", <Plane size={18}/>)}{navLink("sponsors", "Sponsors", <Building2 size={18}/>)}{navLink("facility", "Facility", <Hammer size={18}/>)}{navLink("quickbooks", "QuickBooks", <Landmark size={18}/>)}</> : null}
     </nav><div className="account"><span>{profile?.full_name ?? user.email}</span><small>{String(profile?.role ?? "member").replaceAll("_", " ")}</small><form action={signOut}><button>Sign out</button></form></div></aside>
     <div className="content"><header><div><p className="eyebrow">{titles[view].eyebrow}</p><h1>{titles[view].title}</h1></div><span className="secure"><Shield size={15}/> Secure workspace</span></header>
@@ -236,6 +240,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ v
       {view === "readiness" && isOperationsManager ? <SeasonReadiness initialRows={readinessRows}/> : null}
       {view === "attendance" && isOperationsManager ? <AttendanceReport players={rosterPlayers} notes={developmentNotes}/> : null}
       {view === "calendar" ? <TeamCalendar initialEvents={teamEvents} teams={teams.map(team=>({id:team.id,name:team.name}))} canManage={isOperationsManager}/> : null}
+      {view === "announcements" ? <Announcements initialItems={announcements} teams={teams.map(team=>({id:team.id,name:team.name}))} canManage={isOperationsManager}/> : null}
       {view === "schedule" ? <CourtSchedule initialSlots={courtSlots} courts={(courtRowsData??[]).map(row=>({id:row.id,name:row.name}))} canManage={canManageSchedule} coachLinked={Boolean(profile?.coach_id)} profiles={(scheduleProfileRows??[]).map(row=>({id:row.id,name:row.full_name??"Unnamed user",role:row.role,coachId:row.coach_id??""}))} coaches={staffDirectory.filter(staff=>staff.isCoach).map(staff=>({id:staff.id,name:staff.name}))}/> : null}
       {view === "time" ? <CoachTimeTracker initialEntries={coachTimeEntries} teams={teams.map(team=>({id:team.id,name:team.name}))} canManage={canManageSchedule} coachLinked={Boolean(profile?.coach_id)}/> : null}
       {view === "billing" && showFinancials ? <><ReconciliationCard players={playerOptions}/><PaymentFollowups initialRows={paymentFollowups}/></> : null}
