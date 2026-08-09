@@ -44,6 +44,8 @@ header { display:flex; justify-content:space-between; gap:20px; align-items:star
 @media (max-width:520px) { .outlook-summary,.outlook-columns { grid-template-columns:1fr; } }
 @media (max-width:800px) { .health-summary,.health-grid { grid-template-columns:1fr 1fr; } }
 @media (max-width:520px) { .health-summary,.health-grid { grid-template-columns:1fr; } }
+.clickable-row { cursor:pointer; }.clickable-row:hover { background:#f8f4fa; }.player-profile-panel { margin-top:14px; padding:18px; border:1px solid #d8c9de; border-radius:12px; background:#faf7fb; }.player-profile-panel h3 { margin:0; font:500 22px Georgia,serif; }.profile-billing { display:flex; flex-wrap:wrap; gap:8px 20px; margin:14px 0; padding:12px; border-radius:8px; background:#f1ebf4; font-size:12px; }.profile-billing span { display:flex; gap:6px; }.profile-form { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:13px; }.profile-form label { display:grid; gap:5px; color:#665b6b; font-size:11px; font-weight:700; }.profile-form input,.profile-form textarea { border:1px solid var(--line); border-radius:7px; padding:10px; background:white; }.profile-form textarea { min-height:72px; resize:vertical; }.profile-wide { grid-column:1 / 3; }
+@media (max-width:520px) { .profile-form { grid-template-columns:1fr; }.profile-wide { grid-column:auto; } }
 @media (max-width:520px) { .cash-summary,.cash-form-grid { grid-template-columns:1fr; } }
 
 /* Invictus Basketball Club brand palette */

@@ -19,7 +19,7 @@ export default async function Home() {
   const { data: profile } = await supabase.from("profiles").select("full_name, role").eq("id", user.id).single();
   const showFinancials = profile?.role === "owner_admin";
   const { data: playerRows } = showFinancials
-    ? await supabase.from("players").select("id, first_name, last_name, grade, jersey, status, billing_status, teams(name), player_billing(monthly_tuition, open_balance, billing_status)").order("last_name")
+    ? await supabase.from("players").select("id, first_name, last_name, grade, jersey, status, billing_status, teams(name), player_billing(monthly_tuition, open_balance, billing_status), player_profile_details(parent_name, parent_email, parent_phone, emergency_contact, coach_notes, admin_notes)").order("last_name")
     : await supabase.from("players").select("id, first_name, last_name, grade, jersey, status, billing_status, teams(name)").order("last_name");
   const rosterPlayers: RosterPlayer[] = (playerRows ?? []).map((row) => {
     const teamValue = row.teams as unknown as { name?: string } | Array<{ name?: string }> | null;
@@ -28,6 +28,8 @@ export default async function Home() {
       ? row.player_billing as unknown as { monthly_tuition?: number; open_balance?: number; billing_status?: string } | Array<{ monthly_tuition?: number; open_balance?: number; billing_status?: string }> | null
       : null;
     const billing = Array.isArray(billingValue) ? billingValue[0] : billingValue;
+    const detailValue = "player_profile_details" in row ? row.player_profile_details as unknown as Record<string, string | null> | Array<Record<string, string | null>> | null : null;
+    const detail = Array.isArray(detailValue) ? detailValue[0] : detailValue;
     return {
       id: row.id,
       firstName: row.first_name,
@@ -39,6 +41,7 @@ export default async function Home() {
       billingStatus: billing?.billing_status ?? row.billing_status,
       monthlyTuition: billing?.monthly_tuition ?? null,
       openBalance: billing?.open_balance ?? null,
+      parentName: detail?.parent_name ?? null, parentEmail: detail?.parent_email ?? null, parentPhone: detail?.parent_phone ?? null, emergencyContact: detail?.emergency_contact ?? null, coachNotes: detail?.coach_notes ?? null, adminNotes: detail?.admin_notes ?? null,
     };
   });
   const playerOptions = rosterPlayers.map((player) => ({ id: player.id, first_name: player.firstName, last_name: player.lastName }));
