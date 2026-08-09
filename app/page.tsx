@@ -112,6 +112,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ v
     syncedAt: row.synced_at,
   }));
   const currentMonth = `${new Date().toISOString().slice(0, 7)}-01`;
+  const nextMonth = new Date(`${currentMonth}T00:00:00`); nextMonth.setMonth(nextMonth.getMonth()+1);
   const { data: cashPlanRow } = profile?.role === "owner_admin"
     ? await supabase.from("monthly_cash_plans").select("plan_month, other_revenue, rent, payroll, utilities, insurance, programs_and_events, other_expenses, safety_cushion, notes").eq("plan_month", currentMonth).maybeSingle()
     : { data: null };
@@ -132,13 +133,18 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ v
     ? await supabase.from("qbo_cash_items").select("item_type, name, document_number, due_date, balance, account_subtype").eq("active", true).order("due_date", { ascending: true, nullsFirst: false })
     : { data: null };
   const cashItems: CashItem[] = (cashItemRows ?? []).map((item) => ({ itemType: item.item_type as CashItem["itemType"], name: item.name, documentNumber: item.document_number, dueDate: item.due_date, balance: Number(item.balance ?? 0), accountSubtype: item.account_subtype }));
+  const { data: approvedCoachTimeRows } = profile?.role === "owner_admin"
+    ? await supabase.from("coach_time_entries").select("coach_id, category, hours").eq("status","approved").gte("work_date",currentMonth).lt("work_date",nextMonth.toISOString().slice(0,10))
+    : { data: null };
+  const approvedTimeByCoach=new Map<string,{skills:number;additional:number;count:number}>();(approvedCoachTimeRows??[]).forEach(entry=>{const current=approvedTimeByCoach.get(entry.coach_id)??{skills:0,additional:0,count:0};if(entry.category==="skills")current.skills+=Number(entry.hours);else current.additional+=Number(entry.hours);current.count+=1;approvedTimeByCoach.set(entry.coach_id,current)});
   const { data: payrollRowsData } = profile?.role === "owner_admin"
     ? await supabase.from("monthly_payroll_entries").select("id, coach_id, staff_name, role, hourly_rate, skills_hours, additional_hours, team_stipend, manager_pay, bonus, team_items, extra_pay_note, bonus_note").eq("plan_month", currentMonth).order("staff_name")
     : { data: null };
-  const savedPayrollRows: PayrollRow[] = (payrollRowsData ?? []).map((row) => ({ ...row, hourly_rate: Number(row.hourly_rate), skills_hours: Number(row.skills_hours), additional_hours: Number(row.additional_hours), team_stipend: Number(row.team_stipend), manager_pay: Number(row.manager_pay), bonus: Number(row.bonus), team_items: Array.isArray(row.team_items) ? row.team_items as Array<{ team: string; amount: number }> : [] }));
+  const coachIdSet=new Set(staffDirectory.filter(staff=>staff.isCoach).map(staff=>staff.id));
+  const savedPayrollRows: PayrollRow[] = (payrollRowsData ?? []).map((row) => {const tracked=row.coach_id&&coachIdSet.has(row.coach_id)?approvedTimeByCoach.get(row.coach_id)??{skills:0,additional:0,count:0}:null;return({ ...row, hourly_rate: Number(row.hourly_rate), skills_hours: tracked?tracked.skills:Number(row.skills_hours), additional_hours: tracked?tracked.additional:Number(row.additional_hours), team_stipend: Number(row.team_stipend), manager_pay: Number(row.manager_pay), bonus: Number(row.bonus), tracked_time:Boolean(tracked),tracked_entry_count:tracked?.count??0, team_items: Array.isArray(row.team_items) ? row.team_items as Array<{ team: string; amount: number }> : [] })});
   const payrollStaffIds = new Set(savedPayrollRows.map((row) => row.coach_id).filter(Boolean));
   const payrollStaffNames = new Set(savedPayrollRows.map((row) => row.staff_name.trim().toLowerCase()));
-  const newStaffRows: PayrollRow[] = staffDirectory.filter((staff) => !payrollStaffIds.has(staff.id) && !payrollStaffNames.has(staff.name.trim().toLowerCase())).map((staff) => ({ coach_id: staff.id, staff_name: staff.name, role: staff.staffRole ?? (staff.isCoach ? "Coach" : "Staff"), hourly_rate: 0, skills_hours: 0, additional_hours: 0, team_stipend: 0, manager_pay: 0, bonus: 0, team_items: staff.teams.map((team) => ({ team, amount: 0 })), extra_pay_note: "", bonus_note: "" }));
+  const newStaffRows: PayrollRow[] = staffDirectory.filter((staff) => !payrollStaffIds.has(staff.id) && !payrollStaffNames.has(staff.name.trim().toLowerCase())).map((staff) => {const tracked=staff.isCoach?approvedTimeByCoach.get(staff.id)??{skills:0,additional:0,count:0}:null;return({ coach_id: staff.id, staff_name: staff.name, role: staff.staffRole ?? (staff.isCoach ? "Coach" : "Staff"), hourly_rate: 0, skills_hours: tracked?.skills??0, additional_hours: tracked?.additional??0, team_stipend: 0, manager_pay: 0, bonus: 0,tracked_time:Boolean(tracked),tracked_entry_count:tracked?.count??0, team_items: staff.teams.map((team) => ({ team, amount: 0 })), extra_pay_note: "", bonus_note: "" })});
   const payrollRows: PayrollRow[] = [...savedPayrollRows, ...newStaffRows].sort((a, b) => a.staff_name.localeCompare(b.staff_name));
   const payrollTotal = payrollRows.reduce((sum, row) => sum + (row.team_items?.length ? row.team_items.reduce((teamSum, team) => teamSum + Number(team.amount), 0) : row.team_stipend) + row.hourly_rate * (row.skills_hours + row.additional_hours) + row.manager_pay + row.bonus, 0);
   const teamStipends = new Map<string, number>();
@@ -180,7 +186,6 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ v
   const { data: pricingRowsData } = profile?.role === "owner_admin" ? await supabase.from("pricing_scenarios").select("id, name, mode, base_rate, proposed_rate, affected_players, added_monthly_revenue, created_at").order("created_at", { ascending:false }).limit(10) : { data:null };
   const pricingScenarios: SavedPricingScenario[] = (pricingRowsData??[]).map(row=>({id:row.id,name:row.name,mode:row.mode,baseRate:Number(row.base_rate),proposedRate:Number(row.proposed_rate),affectedPlayers:Number(row.affected_players),addedMonthlyRevenue:Number(row.added_monthly_revenue),createdAt:row.created_at}));
   const canManageSchedule = ["owner_admin", "program_director"].includes(profile?.role ?? "");
-  const nextMonth = new Date(`${currentMonth}T00:00:00`); nextMonth.setMonth(nextMonth.getMonth()+1);
   const { data: coachTimeRows } = await supabase.from("coach_time_entries").select("id, work_date, category, hours, notes, status, coaches(name), teams(name)").gte("work_date",currentMonth).lt("work_date",nextMonth.toISOString().slice(0,10)).order("work_date",{ascending:false});
   const coachTimeEntries:CoachTimeEntry[]=(coachTimeRows??[]).map(row=>{const coachValue=row.coaches as unknown as {name?:string}|Array<{name?:string}>|null,teamValue=row.teams as unknown as {name?:string}|Array<{name?:string}>|null;const coach=Array.isArray(coachValue)?coachValue[0]:coachValue,team=Array.isArray(teamValue)?teamValue[0]:teamValue;return{id:row.id,coachName:coach?.name??profile?.full_name??"Coach",teamName:team?.name??"",workDate:row.work_date,category:row.category,hours:Number(row.hours),notes:row.notes??"",status:row.status}});
   const { data: courtRowsData } = await supabase.from("courts").select("id, name").eq("is_active", true).order("name");
