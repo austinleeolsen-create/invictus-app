@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { Users, UsersRound, WalletCards, Shield, Activity, Building2, Hammer, Landmark, BadgeDollarSign, BookOpenCheck, Plane, TrendingUp, CalendarClock, Clock3, Shirt, ClipboardCheck, CalendarCheck2, CalendarDays, Bell, MessageCircle } from "lucide-react";
+import { Shield } from "lucide-react";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { signOut } from "./login/actions";
 import { ReconciliationCard } from "@/components/reconciliation-card";
@@ -26,6 +26,7 @@ import { AttendanceReport } from "@/components/attendance-report";
 import { TeamCalendar, type TeamEvent } from "@/components/team-calendar";
 import { Announcements, type Announcement } from "@/components/announcements";
 import { GroupMeInbox, type GroupMeBroadcast, type GroupMeConnection, type GroupMeSubmission } from "@/components/groupme-inbox";
+import { AppSidebar } from "@/components/app-sidebar";
 
 export default async function Home({ searchParams }: { searchParams: Promise<{ view?: string }> }) {
   const supabase = await createSupabaseServerClient();
@@ -233,13 +234,8 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ v
     schedule: { eyebrow: "Court schedule", title: "Classes, availability, and coach PT." },
     overview: { eyebrow: "Operations overview", title: "Good work starts with a clear court." }, players: { eyebrow: "Player operations", title: "Players and payment status." }, teams: { eyebrow: "Program operations", title: "Teams, coaches, and team health." }, billing: { eyebrow: "Tuition collections", title: "Who has paid—and who needs a call?" }, pricing: { eyebrow:"Tuition planning", title:"Understand a price change before making it." }, cash: { eyebrow: "Cash planning", title: "Can we pay the bills and still breathe?" }, payroll: { eyebrow: "Staff planning", title: "Hours, teams, and expected pay." }, travel: { eyebrow: "Team travel", title: "Trips, players, payments, and logistics." }, sponsors: { eyebrow: "Community support", title: "Sponsors, commitments, and renewals." }, facility: { eyebrow: "Facility planning", title: "Fix the gym without risking the bills." }, quickbooks: { eyebrow: "Accounting connection", title: "QuickBooks data behind the simple numbers." },
   };
-  const navLink = (key: string, label: string, icon: React.ReactNode) => <a className={view === key ? "active" : ""} href={`/?view=${key}`}>{icon}{label}</a>;
-
   return <main className="app-shell">
-    <aside><div className="brand"><div className="brand-mark">I</div><div><strong>INVICTUS</strong><span>Operations Hub</span></div></div><nav>
-      {navLink("overview", "Overview", <Activity size={18}/>)}{navLink("announcements", "Announcements", <Bell size={18}/>)}{navLink("players", "Players", <Users size={18}/>)}{navLink("teams", "Teams", <UsersRound size={18}/>)}{navLink("calendar", "Team Calendar", <CalendarDays size={18}/>)}{isOperationsManager ? <>{navLink("readiness", "Season Setup", <ClipboardCheck size={18}/>)}{navLink("jerseys", "Jerseys", <Shirt size={18}/>)}{navLink("attendance", "Attendance", <CalendarCheck2 size={18}/>)}{navLink("groupme", "GroupMe", <MessageCircle size={18}/>)}</> : null}{navLink("schedule", "Court Schedule", <CalendarClock size={18}/>)}{navLink("time", canManageSchedule?"Coach Time":"My Time", <Clock3 size={18}/>)}
-      {showFinancials ? <>{navLink("billing", "Billing", <WalletCards size={18}/>)}{navLink("pricing", "Pricing", <TrendingUp size={18}/>)}{navLink("cash", "Cash Plan", <BadgeDollarSign size={18}/>)}{navLink("payroll", "Payroll", <BookOpenCheck size={18}/>)}{navLink("travel", "Travel", <Plane size={18}/>)}{navLink("sponsors", "Sponsors", <Building2 size={18}/>)}{navLink("facility", "Facility", <Hammer size={18}/>)}{navLink("quickbooks", "QuickBooks", <Landmark size={18}/>)}</> : null}
-    </nav><div className="account"><span>{profile?.full_name ?? user.email}</span><small>{String(profile?.role ?? "member").replaceAll("_", " ")}</small><form action={signOut}><button>Sign out</button></form></div></aside>
+    <AppSidebar view={view} name={profile?.full_name ?? user.email ?? "Invictus"} role={String(profile?.role ?? "member")} showFinancials={showFinancials} isOperationsManager={isOperationsManager}><form action={signOut}><button>Sign out</button></form></AppSidebar>
     <div className="content"><header><div><p className="eyebrow">{titles[view].eyebrow}</p><h1>{titles[view].title}</h1></div><span className="secure"><Shield size={15}/> Secure workspace</span></header>
       {view === "overview" ? profile?.role==="coach"?<CoachOverview name={profile.full_name??"Coach"} teams={teams} players={rosterPlayers} slots={courtSlots} timeEntries={coachTimeEntries} notes={developmentNotes}/>:<AdminOverview name={profile?.full_name??"Admin"} showFinancials={showFinancials} cashBalance={startingCash} expectedTuition={expectedTuition} collections={paymentFollowups} timeEntries={coachTimeEntries} ptItems={courtSlots.filter(slot=>slot.request).map(slot=>({id:slot.request!.id,coachName:slot.request!.coachName,clientName:slot.request!.clientName,status:slot.request!.status,feeAmount:slot.request!.feeAmount,feeStatus:slot.request!.feeStatus,startAt:slot.startAt}))} playerFollowups={developmentNotes} travelItems={adminTravelItems} facilities={facilityProjects} seasonItems={readinessRows} jerseyItems={jerseyRows}/> : null}
       {view === "players" ? showFinancials?<><PlayerRoster players={rosterPlayers} showFinancials={showFinancials} teams={teams.map((team)=>({id:team.id,name:team.name,season:team.season}))}/><CoachPlayerDevelopment players={rosterPlayers} notes={developmentNotes} coachLinked={Boolean(profile?.coach_id)} canManage={true}/></>:<CoachPlayerDevelopment players={rosterPlayers} notes={developmentNotes} coachLinked={Boolean(profile?.coach_id)} canManage={profile?.role==="program_director"}/> : null}
