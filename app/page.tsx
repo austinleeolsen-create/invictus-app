@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { Users, UsersRound, WalletCards, Shield, Activity, Building2, Hammer, Landmark, BadgeDollarSign, BookOpenCheck, Plane, TrendingUp, CalendarClock, Clock3 } from "lucide-react";
+import { Users, UsersRound, WalletCards, Shield, Activity, Building2, Hammer, Landmark, BadgeDollarSign, BookOpenCheck, Plane, TrendingUp, CalendarClock, Clock3, Shirt } from "lucide-react";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { signOut } from "./login/actions";
 import { ReconciliationCard } from "@/components/reconciliation-card";
@@ -20,6 +20,7 @@ import { CoachTimeTracker, type CoachTimeEntry } from "@/components/coach-time-t
 import { CoachPlayerDevelopment, type DevelopmentNote } from "@/components/coach-player-development";
 import { CoachOverview } from "@/components/coach-overview";
 import { AdminOverview } from "@/components/admin-overview";
+import { JerseyTracker, type JerseyRow } from "@/components/jersey-tracker";
 
 export default async function Home({ searchParams }: { searchParams: Promise<{ view?: string }> }) {
   const supabase = await createSupabaseServerClient();
@@ -27,10 +28,12 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ v
   if (!user) redirect("/login");
   const { data: profile } = await supabase.from("profiles").select("full_name, role, coach_id").eq("id", user.id).single();
   const showFinancials = profile?.role === "owner_admin";
+  const isOperationsManager = ["owner_admin", "program_director"].includes(profile?.role ?? "");
   const requestedView = (await searchParams).view ?? "overview";
   const generalViews = ["overview", "players", "teams", "schedule", "time"];
+  const managerViews = ["jerseys"];
   const financialViews = ["billing", "pricing", "cash", "payroll", "travel", "sponsors", "facility", "quickbooks"];
-  const allowedViews = showFinancials ? [...generalViews, ...financialViews] : generalViews;
+  const allowedViews = showFinancials ? [...generalViews, ...managerViews, ...financialViews] : isOperationsManager ? [...generalViews, ...managerViews] : generalViews;
   const view = allowedViews.includes(requestedView) ? requestedView : "overview";
   const { data: playerRows } = showFinancials
     ? await supabase.from("players").select("id, first_name, last_name, grade, jersey, status, billing_status, teams(id, name), player_billing(monthly_tuition, open_balance, billing_status), player_profile_details(parent_name, parent_email, parent_phone, emergency_contact, coach_notes, admin_notes)").order("last_name")
@@ -92,6 +95,18 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ v
   });
   const coaches = staffDirectory.filter((staff) => staff.isCoach);
   const { data: seasonRows } = await supabase.from("seasons").select("id, name").order("start_date", { ascending: false });
+  const { data: jerseyTrackingRows } = isOperationsManager
+    ? await supabase.from("player_jersey_tracking").select("player_id, season_id, team_id, jersey_number, jersey_size, status, notes")
+    : { data: null };
+  const jerseyByPlayerSeason = new Map((jerseyTrackingRows ?? []).map((row) => [`${row.player_id}:${row.season_id}`, row]));
+  const teamById = new Map(teams.map((team) => [team.id, team]));
+  const jerseyRows: JerseyRow[] = rosterPlayers.flatMap((player) => {
+    if (!player.teamId) return [];
+    const team = teamById.get(player.teamId);
+    if (!team?.seasonId) return [];
+    const tracking = jerseyByPlayerSeason.get(`${player.id}:${team.seasonId}`);
+    return [{ playerId: player.id, name: `${player.firstName} ${player.lastName}`, teamId: team.id, teamName: team.name, seasonId: team.seasonId, seasonName: team.season ?? "Season", jerseyNumber: tracking?.jersey_number ?? player.jersey ?? "", jerseySize: tracking?.jersey_size ?? "", status: (tracking?.status ?? "needs_ordering") as JerseyRow["status"], notes: tracking?.notes ?? "" }];
+  });
   const { data: qboConnection } = profile?.role === "owner_admin"
     ? await supabase.from("qbo_connections").select("environment").limit(1).maybeSingle()
     : { data: null };
@@ -173,7 +188,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ v
   const adminTravelItems=clearanceTrips.flatMap(trip=>trip.players.filter(player=>player.amountDue-player.amountPaid>0).map(player=>({trip:trip.name,player:player.name,balance:player.amountDue-player.amountPaid,deadline:trip.paymentDeadline})));
   const { data: pricingRowsData } = profile?.role === "owner_admin" ? await supabase.from("pricing_scenarios").select("id, name, mode, base_rate, proposed_rate, affected_players, added_monthly_revenue, created_at").order("created_at", { ascending:false }).limit(10) : { data:null };
   const pricingScenarios: SavedPricingScenario[] = (pricingRowsData??[]).map(row=>({id:row.id,name:row.name,mode:row.mode,baseRate:Number(row.base_rate),proposedRate:Number(row.proposed_rate),affectedPlayers:Number(row.affected_players),addedMonthlyRevenue:Number(row.added_monthly_revenue),createdAt:row.created_at}));
-  const canManageSchedule = ["owner_admin", "program_director"].includes(profile?.role ?? "");
+  const canManageSchedule = isOperationsManager;
   const { data: coachTimeRows } = await supabase.from("coach_time_entries").select("id, work_date, category, hours, notes, status, coaches(name), teams(name)").gte("work_date",currentMonth).lt("work_date",nextMonth.toISOString().slice(0,10)).order("work_date",{ascending:false});
   const coachTimeEntries:CoachTimeEntry[]=(coachTimeRows??[]).map(row=>{const coachValue=row.coaches as unknown as {name?:string}|Array<{name?:string}>|null,teamValue=row.teams as unknown as {name?:string}|Array<{name?:string}>|null;const coach=Array.isArray(coachValue)?coachValue[0]:coachValue,team=Array.isArray(teamValue)?teamValue[0]:teamValue;return{id:row.id,coachName:coach?.name??profile?.full_name??"Coach",teamName:team?.name??"",workDate:row.work_date,category:row.category,hours:Number(row.hours),notes:row.notes??"",status:row.status}});
   const { data: courtRowsData } = await supabase.from("courts").select("id, name").eq("is_active", true).order("name");
@@ -183,6 +198,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ v
 
   const titles: Record<string, { eyebrow: string; title: string }> = {
     time: { eyebrow: "Coach time", title: canManageSchedule ? "Review hours before payroll." : "Track the time you worked." },
+    jerseys: { eyebrow: "Season equipment", title: "Get every player the right jersey." },
     schedule: { eyebrow: "Court schedule", title: "Classes, availability, and coach PT." },
     overview: { eyebrow: "Operations overview", title: "Good work starts with a clear court." }, players: { eyebrow: "Player operations", title: "Players and payment status." }, teams: { eyebrow: "Program operations", title: "Teams, coaches, and team health." }, billing: { eyebrow: "Tuition collections", title: "Who has paid—and who needs a call?" }, pricing: { eyebrow:"Tuition planning", title:"Understand a price change before making it." }, cash: { eyebrow: "Cash planning", title: "Can we pay the bills and still breathe?" }, payroll: { eyebrow: "Staff planning", title: "Hours, teams, and expected pay." }, travel: { eyebrow: "Team travel", title: "Trips, players, payments, and logistics." }, sponsors: { eyebrow: "Community support", title: "Sponsors, commitments, and renewals." }, facility: { eyebrow: "Facility planning", title: "Fix the gym without risking the bills." }, quickbooks: { eyebrow: "Accounting connection", title: "QuickBooks data behind the simple numbers." },
   };
@@ -190,13 +206,14 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ v
 
   return <main className="app-shell">
     <aside><div className="brand"><div className="brand-mark">I</div><div><strong>INVICTUS</strong><span>Operations Hub</span></div></div><nav>
-      {navLink("overview", "Overview", <Activity size={18}/>)}{navLink("players", "Players", <Users size={18}/>)}{navLink("teams", "Teams", <UsersRound size={18}/>)}{navLink("schedule", "Court Schedule", <CalendarClock size={18}/>)}{navLink("time", canManageSchedule?"Coach Time":"My Time", <Clock3 size={18}/>)}
+      {navLink("overview", "Overview", <Activity size={18}/>)}{navLink("players", "Players", <Users size={18}/>)}{navLink("teams", "Teams", <UsersRound size={18}/>)}{isOperationsManager ? navLink("jerseys", "Jerseys", <Shirt size={18}/>) : null}{navLink("schedule", "Court Schedule", <CalendarClock size={18}/>)}{navLink("time", canManageSchedule?"Coach Time":"My Time", <Clock3 size={18}/>)}
       {showFinancials ? <>{navLink("billing", "Billing", <WalletCards size={18}/>)}{navLink("pricing", "Pricing", <TrendingUp size={18}/>)}{navLink("cash", "Cash Plan", <BadgeDollarSign size={18}/>)}{navLink("payroll", "Payroll", <BookOpenCheck size={18}/>)}{navLink("travel", "Travel", <Plane size={18}/>)}{navLink("sponsors", "Sponsors", <Building2 size={18}/>)}{navLink("facility", "Facility", <Hammer size={18}/>)}{navLink("quickbooks", "QuickBooks", <Landmark size={18}/>)}</> : null}
     </nav><div className="account"><span>{profile?.full_name ?? user.email}</span><small>{String(profile?.role ?? "member").replaceAll("_", " ")}</small><form action={signOut}><button>Sign out</button></form></div></aside>
     <div className="content"><header><div><p className="eyebrow">{titles[view].eyebrow}</p><h1>{titles[view].title}</h1></div><span className="secure"><Shield size={15}/> Secure workspace</span></header>
       {view === "overview" ? profile?.role==="coach"?<CoachOverview name={profile.full_name??"Coach"} teams={teams} players={rosterPlayers} slots={courtSlots} timeEntries={coachTimeEntries} notes={developmentNotes}/>:<AdminOverview name={profile?.full_name??"Admin"} showFinancials={showFinancials} cashBalance={startingCash} expectedTuition={expectedTuition} collections={paymentFollowups} timeEntries={coachTimeEntries} ptItems={courtSlots.filter(slot=>slot.request).map(slot=>({id:slot.request!.id,coachName:slot.request!.coachName,clientName:slot.request!.clientName,status:slot.request!.status,feeAmount:slot.request!.feeAmount,feeStatus:slot.request!.feeStatus,startAt:slot.startAt}))} playerFollowups={developmentNotes} travelItems={adminTravelItems} facilities={facilityProjects}/> : null}
       {view === "players" ? showFinancials?<><PlayerRoster players={rosterPlayers} showFinancials={showFinancials} teams={teams.map((team)=>({id:team.id,name:team.name,season:team.season}))}/><CoachPlayerDevelopment players={rosterPlayers} notes={developmentNotes} coachLinked={Boolean(profile?.coach_id)} canManage={true}/></>:<CoachPlayerDevelopment players={rosterPlayers} notes={developmentNotes} coachLinked={Boolean(profile?.coach_id)} canManage={profile?.role==="program_director"}/> : null}
       {view === "teams" ? <TeamOperations teams={teams} coaches={coaches} seasons={seasonRows ?? []} canEdit={["owner_admin", "program_director"].includes(profile?.role ?? "")} canCreateSeason={profile?.role === "owner_admin"}/> : null}
+      {view === "jerseys" && isOperationsManager ? <JerseyTracker initialRows={jerseyRows}/> : null}
       {view === "schedule" ? <CourtSchedule initialSlots={courtSlots} courts={(courtRowsData??[]).map(row=>({id:row.id,name:row.name}))} canManage={canManageSchedule} coachLinked={Boolean(profile?.coach_id)} profiles={(scheduleProfileRows??[]).map(row=>({id:row.id,name:row.full_name??"Unnamed user",role:row.role,coachId:row.coach_id??""}))} coaches={staffDirectory.filter(staff=>staff.isCoach).map(staff=>({id:staff.id,name:staff.name}))}/> : null}
       {view === "time" ? <CoachTimeTracker initialEntries={coachTimeEntries} teams={teams.map(team=>({id:team.id,name:team.name}))} canManage={canManageSchedule} coachLinked={Boolean(profile?.coach_id)}/> : null}
       {view === "billing" && showFinancials ? <><ReconciliationCard players={playerOptions}/><PaymentFollowups initialRows={paymentFollowups}/></> : null}
