@@ -10,7 +10,6 @@ import { CashPlanner, type CashPlan } from "@/components/cash-planner";
 import { PaymentFollowups, type FollowupPlayer } from "@/components/payment-followups";
 import { CashOutlook, type CashItem } from "@/components/cash-outlook";
 import { PayrollPlanner, type PayrollRow } from "@/components/payroll-planner";
-import { TeamHealth, type TeamHealthRow } from "@/components/team-health";
 import { SponsorPipeline, type SponsorRow } from "@/components/sponsor-pipeline";
 import { FacilityProjects, type FacilityProject } from "@/components/facility-projects";
 import { TravelPlanner, type TravelTrip } from "@/components/travel-planner";
@@ -20,6 +19,7 @@ import { CourtSchedule, type CourtSlot } from "@/components/court-schedule";
 import { CoachTimeTracker, type CoachTimeEntry } from "@/components/coach-time-tracker";
 import { CoachPlayerDevelopment, type DevelopmentNote } from "@/components/coach-player-development";
 import { CoachOverview } from "@/components/coach-overview";
+import { AdminOverview } from "@/components/admin-overview";
 
 export default async function Home({ searchParams }: { searchParams: Promise<{ view?: string }> }) {
   const supabase = await createSupabaseServerClient();
@@ -147,19 +147,6 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ v
   const newStaffRows: PayrollRow[] = staffDirectory.filter((staff) => !payrollStaffIds.has(staff.id) && !payrollStaffNames.has(staff.name.trim().toLowerCase())).map((staff) => {const tracked=staff.isCoach?approvedTimeByCoach.get(staff.id)??{skills:0,additional:0,count:0}:null;return({ coach_id: staff.id, staff_name: staff.name, role: staff.staffRole ?? (staff.isCoach ? "Coach" : "Staff"), hourly_rate: 0, skills_hours: tracked?.skills??0, additional_hours: tracked?.additional??0, team_stipend: 0, manager_pay: 0, bonus: 0,tracked_time:Boolean(tracked),tracked_entry_count:tracked?.count??0, team_items: staff.teams.map((team) => ({ team, amount: 0 })), extra_pay_note: "", bonus_note: "" })});
   const payrollRows: PayrollRow[] = [...savedPayrollRows, ...newStaffRows].sort((a, b) => a.staff_name.localeCompare(b.staff_name));
   const payrollTotal = payrollRows.reduce((sum, row) => sum + (row.team_items?.length ? row.team_items.reduce((teamSum, team) => teamSum + Number(team.amount), 0) : row.team_stipend) + row.hourly_rate * (row.skills_hours + row.additional_hours) + row.manager_pay + row.bonus, 0);
-  const teamStipends = new Map<string, number>();
-  payrollRows.forEach((row) => row.team_items?.forEach((item) => teamStipends.set(item.team.trim().toLowerCase(), (teamStipends.get(item.team.trim().toLowerCase()) ?? 0) + Number(item.amount))));
-  const teamHealth: TeamHealthRow[] = teams.map((team) => {
-    const teamPlayers = rosterPlayers.filter((player) => player.team === team.name);
-    const paying = teamPlayers.filter((player) => player.billingStatus === "active");
-    const pastDue = teamPlayers.filter((player) => player.billingStatus === "past_due" || Number(player.openBalance ?? 0) > 0);
-    const revenue = paying.reduce((sum, player) => sum + Number(player.monthlyTuition ?? 0), 0);
-    const cost = teamStipends.get(team.name.trim().toLowerCase()) ?? 0;
-    const averageTuition = paying.length ? revenue / paying.length : 0;
-    const breakEven = cost > 0 && averageTuition > 0 ? Math.ceil(cost / averageTuition) : null;
-    const status: TeamHealthRow["status"] = cost <= 0 ? "setup" : revenue - cost < 0 ? "losing" : pastDue.length ? "collections" : "healthy";
-    return { id: team.id, name: team.name, players: teamPlayers.length, payingPlayers: paying.length, pastDuePlayers: pastDue.length, monthlyRevenue: revenue, coachCost: cost, margin: revenue - cost, breakEvenPlayers: breakEven, status };
-  });
   const { data: sponsorRowsData } = profile?.role === "owner_admin"
     ? await supabase.from("sponsors").select("id, name, contact_name, contact_email, stage, contribution_type, amount, renewal_date, notes").order("name")
     : { data: null };
@@ -183,6 +170,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ v
       return { playerId: item.player_id, name: `${player?.first_name ?? ""} ${player?.last_name ?? ""}`.trim(), amountDue: Number(item.amount_due), amountPaid: Number(item.amount_paid), invoiceNumber: item.invoice_number ?? "", contactStatus: item.contact_status, lastContactedOn: item.last_contacted_on ?? "", exceptionType: item.exception_type ?? "none", exceptionNote: item.exception_note ?? "" };
     }) };
   });
+  const adminTravelItems=clearanceTrips.flatMap(trip=>trip.players.filter(player=>player.amountDue-player.amountPaid>0).map(player=>({trip:trip.name,player:player.name,balance:player.amountDue-player.amountPaid,deadline:trip.paymentDeadline})));
   const { data: pricingRowsData } = profile?.role === "owner_admin" ? await supabase.from("pricing_scenarios").select("id, name, mode, base_rate, proposed_rate, affected_players, added_monthly_revenue, created_at").order("created_at", { ascending:false }).limit(10) : { data:null };
   const pricingScenarios: SavedPricingScenario[] = (pricingRowsData??[]).map(row=>({id:row.id,name:row.name,mode:row.mode,baseRate:Number(row.base_rate),proposedRate:Number(row.proposed_rate),affectedPlayers:Number(row.affected_players),addedMonthlyRevenue:Number(row.added_monthly_revenue),createdAt:row.created_at}));
   const canManageSchedule = ["owner_admin", "program_director"].includes(profile?.role ?? "");
@@ -206,7 +194,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ v
       {showFinancials ? <>{navLink("billing", "Billing", <WalletCards size={18}/>)}{navLink("pricing", "Pricing", <TrendingUp size={18}/>)}{navLink("cash", "Cash Plan", <BadgeDollarSign size={18}/>)}{navLink("payroll", "Payroll", <BookOpenCheck size={18}/>)}{navLink("travel", "Travel", <Plane size={18}/>)}{navLink("sponsors", "Sponsors", <Building2 size={18}/>)}{navLink("facility", "Facility", <Hammer size={18}/>)}{navLink("quickbooks", "QuickBooks", <Landmark size={18}/>)}</> : null}
     </nav><div className="account"><span>{profile?.full_name ?? user.email}</span><small>{String(profile?.role ?? "member").replaceAll("_", " ")}</small><form action={signOut}><button>Sign out</button></form></div></aside>
     <div className="content"><header><div><p className="eyebrow">{titles[view].eyebrow}</p><h1>{titles[view].title}</h1></div><span className="secure"><Shield size={15}/> Secure workspace</span></header>
-      {view === "overview" ? profile?.role==="coach"?<CoachOverview name={profile.full_name??"Coach"} teams={teams} players={rosterPlayers} slots={courtSlots} timeEntries={coachTimeEntries} notes={developmentNotes}/>:<><section className="hero"><div><p>INVICTUS HUB</p><h2>One clear place to run the club.</h2><span>Choose a section on the left to focus on one job at a time.</span></div></section><div className="dashboard-grid"><section className="status-card"><p className="eyebrow">Foundation status</p><h2>Core systems ready</h2><ul><li><span>Supabase authentication</span><b>Connected</b></li><li><span>Role-based access</span><b>Enforced</b></li><li><span>Stripe connection</span><b className="test">Test mode</b></li></ul></section><section className="status-card"><p className="eyebrow">Start here</p><h2>What needs attention?</h2><ul><li><span>Players needing payment follow-up</span><b>{paymentFollowups.length}</b></li><li><span>Open facility projects</span><b>{facilityProjects.filter((project) => project.status !== "completed").length}</b></li><li><span>Teams needing setup</span><b>{teamHealth.filter((team) => team.status === "setup").length}</b></li></ul></section></div>{showFinancials ? <TeamHealth teams={teamHealth}/> : null}</> : null}
+      {view === "overview" ? profile?.role==="coach"?<CoachOverview name={profile.full_name??"Coach"} teams={teams} players={rosterPlayers} slots={courtSlots} timeEntries={coachTimeEntries} notes={developmentNotes}/>:<AdminOverview name={profile?.full_name??"Admin"} showFinancials={showFinancials} cashBalance={startingCash} expectedTuition={expectedTuition} collections={paymentFollowups} timeEntries={coachTimeEntries} ptItems={courtSlots.filter(slot=>slot.request).map(slot=>({id:slot.request!.id,coachName:slot.request!.coachName,clientName:slot.request!.clientName,status:slot.request!.status,feeAmount:slot.request!.feeAmount,feeStatus:slot.request!.feeStatus,startAt:slot.startAt}))} playerFollowups={developmentNotes} travelItems={adminTravelItems} facilities={facilityProjects}/> : null}
       {view === "players" ? showFinancials?<><PlayerRoster players={rosterPlayers} showFinancials={showFinancials} teams={teams.map((team)=>({id:team.id,name:team.name,season:team.season}))}/><CoachPlayerDevelopment players={rosterPlayers} notes={developmentNotes} coachLinked={Boolean(profile?.coach_id)} canManage={true}/></>:<CoachPlayerDevelopment players={rosterPlayers} notes={developmentNotes} coachLinked={Boolean(profile?.coach_id)} canManage={profile?.role==="program_director"}/> : null}
       {view === "teams" ? <TeamOperations teams={teams} coaches={coaches} seasons={seasonRows ?? []} canEdit={["owner_admin", "program_director"].includes(profile?.role ?? "")} canCreateSeason={profile?.role === "owner_admin"}/> : null}
       {view === "schedule" ? <CourtSchedule initialSlots={courtSlots} courts={(courtRowsData??[]).map(row=>({id:row.id,name:row.name}))} canManage={canManageSchedule} coachLinked={Boolean(profile?.coach_id)} profiles={(scheduleProfileRows??[]).map(row=>({id:row.id,name:row.full_name??"Unnamed user",role:row.role,coachId:row.coach_id??""}))} coaches={staffDirectory.filter(staff=>staff.isCoach).map(staff=>({id:staff.id,name:staff.name}))}/> : null}
