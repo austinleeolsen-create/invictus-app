@@ -31,6 +31,8 @@ create table if not exists public.groupme_schedule_submissions (
 
 alter table public.groupme_team_connections enable row level security;
 alter table public.groupme_schedule_submissions enable row level security;
+drop policy if exists "operations managers manage groupme connections" on public.groupme_team_connections;
 create policy "operations managers manage groupme connections" on public.groupme_team_connections for all to authenticated using (public.can_manage_court_schedule()) with check (public.can_manage_court_schedule());
+drop policy if exists "operations managers manage groupme submissions" on public.groupme_schedule_submissions;
 create policy "operations managers manage groupme submissions" on public.groupme_schedule_submissions for all to authenticated using (public.can_manage_court_schedule()) with check (public.can_manage_court_schedule());
 create index if not exists groupme_submissions_status_idx on public.groupme_schedule_submissions(status, received_at desc);
