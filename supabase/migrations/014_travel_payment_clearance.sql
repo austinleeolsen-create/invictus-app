@@ -1,0 +1,2 @@
+alter table public.travel_trips add column if not exists payment_deadline date;
+alter table public.travel_participants add column if not exists invoice_number text,add column if not exists exception_type text not null default 'none' check(exception_type in('none','payment_plan','scholarship','owner_override','write_off')),add column if not exists exception_note text,add column if not exists last_contacted_on date;
