@@ -2,8 +2,9 @@ import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 const text=(body:Record<string,unknown>,key:string)=>String(body[key]??"").trim();
-const categories=["development","strength","improvement","attendance","behavior","general"];
+const categories=["development","strength","improvement","attendance","behavior","parent_contact","payment_discussion","general"];
 const attendanceStatuses=["present","late","absent","excused"];
+const contactMethods=["call","text","email","in_person","other"],contactOutcomes=["attempted","reached","waiting_response","resolved"];
 
 export async function POST(request:Request){
   try{
@@ -12,12 +13,14 @@ export async function POST(request:Request){
     const{data:profile}=await supabase.from("profiles").select("role, coach_id").eq("id",user.id).single();
     const action=text(body,"action");
     if(action==="add_note"){
-      if(!profile?.coach_id)throw new Error("Your login is not linked to a coach record.");
-      const playerId=text(body,"playerId"),category=text(body,"category"),note=text(body,"note"),attendanceStatus=text(body,"attendanceStatus");
+      const manager=["owner_admin","program_director"].includes(profile?.role??"");if(!profile?.coach_id&&!manager)throw new Error("Your login is not linked to a coach record.");
+      const playerId=text(body,"playerId"),category=text(body,"category"),note=text(body,"note"),attendanceStatus=text(body,"attendanceStatus"),contactMethod=text(body,"contactMethod"),contactOutcome=text(body,"contactOutcome");
       if(!playerId||!categories.includes(category)||!note)throw new Error("Choose a category and enter a note.");
       if(category==="attendance"&&!attendanceStatuses.includes(attendanceStatus))throw new Error("Choose an attendance result.");
+      if(["parent_contact","payment_discussion"].includes(category)&&(!contactMethods.includes(contactMethod)||!contactOutcomes.includes(contactOutcome)))throw new Error("Choose the contact method and outcome.");
+      if(category==="payment_discussion"&&!manager)throw new Error("Only Molly or an owner can record payment discussions.");
       const{data:player,error:playerError}=await supabase.from("players").select("id, team_id").eq("id",playerId).single();if(playerError||!player?.team_id)throw new Error("That player is not assigned to one of your teams.");
-      const{error}=await supabase.from("player_development_notes").insert({player_id:playerId,team_id:player.team_id,coach_id:profile.coach_id,author_id:user.id,category,attendance_status:category==="attendance"?attendanceStatus:null,activity_date:text(body,"activityDate")||new Date().toISOString().slice(0,10),note,follow_up_needed:body.followUp===true||text(body,"followUp")==="on"});if(error)throw error;
+      const{error}=await supabase.from("player_development_notes").insert({player_id:playerId,team_id:player.team_id,coach_id:profile?.coach_id??null,author_id:user.id,category,attendance_status:category==="attendance"?attendanceStatus:null,contact_method:["parent_contact","payment_discussion"].includes(category)?contactMethod:null,contact_outcome:["parent_contact","payment_discussion"].includes(category)?contactOutcome:null,manager_only:category==="payment_discussion",activity_date:text(body,"activityDate")||new Date().toISOString().slice(0,10),note,follow_up_needed:body.followUp===true||text(body,"followUp")==="on"});if(error)throw error;
       return NextResponse.json({ok:true});
     }
     if(action==="save_attendance"){
