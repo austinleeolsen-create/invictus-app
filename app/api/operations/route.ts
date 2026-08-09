@@ -59,9 +59,9 @@ export async function POST(request: Request) {
       if (!name) return NextResponse.json({ error: "Season name is required." }, { status: 400 });
       const { data } = await supabase.from("seasons").select("id").ilike("name", name).limit(1);
       if (data?.length) return NextResponse.json({ error: "That season already exists." }, { status: 409 });
-      const { error } = await supabase.from("seasons").insert({ name, start_date: startDate || null, end_date: endDate || null, is_current: false });
+      const { data: season, error } = await supabase.from("seasons").insert({ name, start_date: startDate || null, end_date: endDate || null, is_current: false }).select("id, name").single();
       if (error) throw error;
-      return NextResponse.json({ ok: true });
+      return NextResponse.json({ ok: true, season });
     }
     return NextResponse.json({ error: "Unknown operation." }, { status: 400 });
   } catch (error) {
