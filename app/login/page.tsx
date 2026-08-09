@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { signIn } from "./actions";
+import Link from "next/link";
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   const supabase = await createSupabaseServerClient();
@@ -21,6 +22,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
           {error ? <p className="error" role="alert">{error}</p> : null}
           <button type="submit">Sign in</button>
         </form>
+        <Link className="forgot-password-link" href="/forgot-password">Forgot your password?</Link>
       </section>
     </main>
   );

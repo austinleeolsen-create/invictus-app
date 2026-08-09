@@ -1,0 +1,3 @@
+"use server";
+import{redirect}from"next/navigation";import{createSupabaseServerClient}from"@/lib/supabase/server";
+export async function updatePassword(formData:FormData){const password=String(formData.get("password")??""),confirm=String(formData.get("confirm")??"");if(password.length<10)redirect("/update-password?error=Use at least 10 characters.");if(password!==confirm)redirect("/update-password?error=The passwords do not match.");const supabase=await createSupabaseServerClient();const{error}=await supabase.auth.updateUser({password});if(error)redirect(`/update-password?error=${encodeURIComponent(error.message)}`);await supabase.auth.signOut();redirect("/login?error=Password updated. Sign in with your new password.")}
