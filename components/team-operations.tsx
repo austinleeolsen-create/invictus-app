@@ -3,7 +3,7 @@ import { useMemo, useState } from "react";
 import { Search, Shield, UsersRound } from "lucide-react";
 
 export type TeamSummary = { id:string; name:string; ageGroup:string|null; season:string|null; seasonId:string|null; isCurrent:boolean; playerCount:number; coaches:Array<{name:string;role:string}> };
-export type CoachSummary = { id:string; name:string; email:string|null; phone:string|null; teams:string[] };
+export type CoachSummary = { id:string; name:string; email:string|null; phone:string|null; teams:string[]; staffRole?:string|null; isCoach?:boolean };
 type SeasonOption = { id:string; name:string };
 
 export function TeamOperations({ teams, coaches, seasons, canEdit, canCreateSeason }: { teams:TeamSummary[]; coaches:CoachSummary[]; seasons:SeasonOption[]; canEdit:boolean; canCreateSeason:boolean }) {

@@ -55,6 +55,8 @@ header { display:flex; justify-content:space-between; gap:20px; align-items:star
 @media (max-width:520px) { .facility-summary { grid-template-columns:1fr; } }
 
 /* Invictus Basketball Club brand palette */
+.staff-directory-note { margin:12px 0 0; padding:10px 12px; border-left:4px solid var(--green); border-radius:7px; background:#f5eff7; color:#665b6b; font-size:11px; }.payroll-staff-select { width:160px; min-width:0; border:1px solid var(--line); border-radius:6px; padding:7px; background:white; }.legacy-staff { display:block; width:155px; margin-top:4px; color:#8a6a20; font-size:9px; }.staff-add-panel form { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; align-items:end; }.staff-add-panel label { display:grid; gap:5px; color:#665b6b; font-size:11px; font-weight:700; }.staff-add-panel input { min-width:0; border:1px solid var(--line); border-radius:7px; padding:9px; background:white; }.staff-add-panel .coach-check { display:flex; grid-column:1 / 4; flex-direction:row; align-items:center; }.staff-add-panel .coach-check input { width:auto; }.staff-add-panel .secondary { grid-column:4; }
+@media (max-width:800px) { .staff-add-panel form { grid-template-columns:1fr 1fr; }.staff-add-panel .coach-check,.staff-add-panel .secondary { grid-column:auto; } }
 .login-shell { background:radial-gradient(circle at 75% 20%,#b987cf38,transparent 30%),linear-gradient(135deg,#050406,#26142d); }
 .roster-count,.team-totals span { background:#f0eaf3; }
 .result-grid div,.match-row,.operation-panel,.coach-directory article,.qbo-result-grid div { background:#f4f0f6; }

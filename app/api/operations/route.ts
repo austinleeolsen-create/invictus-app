@@ -15,8 +15,10 @@ export async function POST(request: Request) {
     const role = profile?.role;
     if (!role || !["owner_admin", "program_director"].includes(role)) return NextResponse.json({ error: "Operations access required." }, { status: 403 });
 
-    if (action === "save_coach") {
+    if (action === "save_coach" || action === "save_staff") {
       const id = field(body, "id"), name = field(body, "name"), email = field(body, "email").toLowerCase(), phone = field(body, "phone");
+      const staffRole = field(body, "staffRole") || (action === "save_coach" ? "Coach" : "Staff");
+      const isCoach = action === "save_coach" || body.isCoach === true || ["on", "true"].includes(field(body, "isCoach"));
       if (!name) return NextResponse.json({ error: "Coach name is required." }, { status: 400 });
       if (email) {
         let query = supabase.from("coaches").select("id").ilike("email", email);
@@ -24,7 +26,7 @@ export async function POST(request: Request) {
         const { data } = await query.limit(1);
         if (data?.length) return NextResponse.json({ error: "A coach with that email already exists." }, { status: 409 });
       }
-      const payload = { name, email: email || null, phone: phone || null };
+      const payload = { name, email: email || null, phone: phone || null, staff_role: staffRole, is_coach: isCoach };
       const result = id ? await supabase.from("coaches").update(payload).eq("id", id) : await supabase.from("coaches").insert(payload);
       if (result.error) throw result.error;
       return NextResponse.json({ ok: true });

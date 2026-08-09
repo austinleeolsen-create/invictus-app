@@ -67,14 +67,15 @@ export default async function Home() {
       }),
     };
   });
-  const { data: coachRows } = await supabase.from("coaches").select("id, name, email, phone, team_coaches(teams(name))").order("name");
-  const coaches: CoachSummary[] = (coachRows ?? []).map((row) => {
+  const { data: coachRows } = await supabase.from("coaches").select("id, name, email, phone, staff_role, is_coach, team_coaches(teams(name))").order("name");
+  const staffDirectory: CoachSummary[] = (coachRows ?? []).map((row) => {
     const assignments = (row.team_coaches ?? []) as unknown as Array<{ teams: { name?: string } | Array<{ name?: string }> | null }>;
-    return { id: row.id, name: row.name, email: row.email, phone: row.phone, teams: assignments.map((assignment) => {
+    return { id: row.id, name: row.name, email: row.email, phone: row.phone, staffRole: row.staff_role, isCoach: row.is_coach, teams: assignments.map((assignment) => {
       const team = Array.isArray(assignment.teams) ? assignment.teams[0] : assignment.teams;
       return team?.name;
     }).filter((name): name is string => Boolean(name)) };
   });
+  const coaches = staffDirectory.filter((staff) => staff.isCoach);
   const { data: seasonRows } = await supabase.from("seasons").select("id, name").order("start_date", { ascending: false });
   const { data: qboConnection } = profile?.role === "owner_admin"
     ? await supabase.from("qbo_connections").select("environment").limit(1).maybeSingle()
@@ -168,7 +169,7 @@ export default async function Home() {
         </div>
         {profile?.role === "owner_admin" ? <PaymentFollowups initialRows={paymentFollowups} /> : null}
         {profile?.role === "owner_admin" ? <CashOutlook items={cashItems} /> : null}
-        {profile?.role === "owner_admin" ? <PayrollPlanner initialRows={payrollRows} currentMonth={currentMonth} /> : null}
+        {profile?.role === "owner_admin" ? <PayrollPlanner initialRows={payrollRows} currentMonth={currentMonth} staffOptions={staffDirectory.map((staff) => ({ id: staff.id, name: staff.name, role: staff.staffRole ?? "", isCoach: Boolean(staff.isCoach) }))} /> : null}
         {profile?.role === "owner_admin" ? <CashPlanner startingCash={startingCash} expectedTuition={expectedTuition} payrollTotal={payrollTotal} initialPlan={cashPlanRow as CashPlan | null} currentMonth={currentMonth} /> : null}
         {profile?.role === "owner_admin" ? <QboConnectionCard connected={Boolean(qboConnection)} environment={qboConnection?.environment} initialHistory={qboHistory} /> : null}
       </div>

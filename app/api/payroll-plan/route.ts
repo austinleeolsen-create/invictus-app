@@ -16,14 +16,19 @@ export async function POST(request: Request) {
     const { supabase, user } = await adminClient();
     const body = await request.json();
     if (!/^\d{4}-\d{2}-01$/.test(body.plan_month ?? "") || !Array.isArray(body.rows) || body.rows.length > 100) throw new Error("The payroll plan is not valid.");
+    const staffIds = body.rows.map((row: Record<string, unknown>) => String(row.coach_id ?? "")).filter(Boolean);
+    const { data: staffRecords } = staffIds.length ? await supabase.from("coaches").select("id, name, staff_role").in("id", staffIds) : { data: [] };
+    const staffById = new Map((staffRecords ?? []).map((staff) => [staff.id, staff]));
+
     const prepared: Array<Record<string, unknown>> = body.rows.map((row: Record<string, unknown>) => {
-      const staffName = String(row.staff_name ?? "").trim();
-      if (!staffName) throw new Error("Every payroll row needs a staff name.");
+      const linkedStaff = staffById.get(String(row.coach_id ?? ""));
+      const staffName = linkedStaff?.name ?? String(row.staff_name ?? "").trim();
+      if (!staffName) throw new Error("Choose a staff member for every payroll row.");
       const values: Record<string, number> = {};
       for (const field of numericFields) {
-        const value = Number(row[field] ?? 0);
-        if (!Number.isFinite(value) || value < 0) throw new Error("Payroll amounts and hours must be zero or greater.");
-        values[field] = Math.round(value * 100) / 100;
+        const amount = Number(row[field] ?? 0);
+        if (!Number.isFinite(amount) || amount < 0) throw new Error("Payroll amounts and hours must be zero or greater.");
+        values[field] = Math.round(amount * 100) / 100;
       }
       const teamItems = Array.isArray(row.team_items) ? row.team_items.slice(0, 30).map((item: unknown) => {
         const detail = item as Record<string, unknown>;
@@ -32,7 +37,15 @@ export async function POST(request: Request) {
         return { team: String(detail.team ?? "").trim(), amount: Math.round(amount * 100) / 100 };
       }).filter((item: { team: string }) => item.team) : [];
       values.team_stipend = teamItems.length ? teamItems.reduce((sum: number, item: { amount: number }) => sum + item.amount, 0) : values.team_stipend;
-      return { ...(row.id ? { id: row.id } : {}), plan_month: body.plan_month, coach_id: row.coach_id || null, staff_name: staffName, role: String(row.role ?? "").trim() || null, ...values, team_items: teamItems, extra_pay_note: String(row.extra_pay_note ?? "").trim() || null, bonus_note: String(row.bonus_note ?? "").trim() || null, updated_by: user.id, updated_at: new Date().toISOString() };
+      return {
+        ...(row.id ? { id: row.id } : {}), plan_month: body.plan_month,
+        coach_id: linkedStaff?.id ?? null, staff_name: staffName,
+        role: String(row.role ?? linkedStaff?.staff_role ?? "").trim() || null,
+        ...values, team_items: teamItems,
+        extra_pay_note: String(row.extra_pay_note ?? "").trim() || null,
+        bonus_note: String(row.bonus_note ?? "").trim() || null,
+        updated_by: user.id, updated_at: new Date().toISOString(),
+      };
     });
     const existing = prepared.filter((row) => "id" in row);
     const additions = prepared.filter((row) => !("id" in row));
