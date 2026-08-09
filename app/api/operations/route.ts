@@ -18,7 +18,7 @@ export async function POST(request: Request) {
     if (action === "save_coach" || action === "save_staff") {
       const id = field(body, "id"), name = field(body, "name"), email = field(body, "email").toLowerCase(), phone = field(body, "phone");
       const staffRole = field(body, "staffRole") || (action === "save_coach" ? "Coach" : "Staff");
-      const isCoach = action === "save_coach" || body.isCoach === true || ["on", "true"].includes(field(body, "isCoach"));
+      const isCoach = action === "save_coach" || staffRole.toLowerCase().includes("coach") || body.isCoach === true || ["on", "true"].includes(field(body, "isCoach"));
       if (!name) return NextResponse.json({ error: "Coach name is required." }, { status: 400 });
       if (email) {
         let query = supabase.from("coaches").select("id").ilike("email", email);

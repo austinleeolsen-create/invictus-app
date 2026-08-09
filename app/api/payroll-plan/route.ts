@@ -47,6 +47,11 @@ export async function POST(request: Request) {
         updated_by: user.id, updated_at: new Date().toISOString(),
       };
     });
+    const coachRoleIds = prepared.filter((row) => row.coach_id && String(row.role ?? "").toLowerCase().includes("coach")).map((row) => String(row.coach_id));
+    if (coachRoleIds.length) {
+      const { error: coachError } = await supabase.from("coaches").update({ is_coach: true }).in("id", coachRoleIds);
+      if (coachError) throw coachError;
+    }
     const existing = prepared.filter((row) => "id" in row);
     const additions = prepared.filter((row) => !("id" in row));
     if (existing.length) { const { error } = await supabase.from("monthly_payroll_entries").upsert(existing); if (error) throw error; }
