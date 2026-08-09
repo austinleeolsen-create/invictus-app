@@ -1,0 +1,3 @@
+create table if not exists public.pricing_scenarios(id uuid primary key default gen_random_uuid(),name text not null,mode text not null check(mode in('single_tier','minimum_price')),base_rate numeric not null default 0 check(base_rate>=0),proposed_rate numeric not null check(proposed_rate>=0),affected_players integer not null default 0,added_monthly_revenue numeric not null default 0,notes text,created_by uuid references auth.users(id) on delete set null,created_at timestamptz not null default now());
+alter table public.pricing_scenarios enable row level security;
+create policy "admins manage pricing scenarios" on public.pricing_scenarios for all to authenticated using(public.is_owner_admin()) with check(public.is_owner_admin());
