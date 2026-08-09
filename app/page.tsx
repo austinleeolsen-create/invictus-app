@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { Users, UsersRound, WalletCards, Shield, Activity } from "lucide-react";
+import { Users, UsersRound, WalletCards, Shield, Activity, Building2 } from "lucide-react";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { signOut } from "./login/actions";
 import { ReconciliationCard } from "@/components/reconciliation-card";
@@ -11,6 +11,7 @@ import { PaymentFollowups, type FollowupPlayer } from "@/components/payment-foll
 import { CashOutlook, type CashItem } from "@/components/cash-outlook";
 import { PayrollPlanner, type PayrollRow } from "@/components/payroll-planner";
 import { TeamHealth, type TeamHealthRow } from "@/components/team-health";
+import { SponsorPipeline, type SponsorRow } from "@/components/sponsor-pipeline";
 
 export default async function Home() {
   const supabase = await createSupabaseServerClient();
@@ -132,12 +133,16 @@ export default async function Home() {
     const status: TeamHealthRow["status"] = cost <= 0 ? "setup" : revenue - cost < 0 ? "losing" : pastDue.length ? "collections" : "healthy";
     return { id: team.id, name: team.name, players: teamPlayers.length, payingPlayers: paying.length, pastDuePlayers: pastDue.length, monthlyRevenue: revenue, coachCost: cost, margin: revenue - cost, breakEvenPlayers: breakEven, status };
   });
+  const { data: sponsorRowsData } = profile?.role === "owner_admin"
+    ? await supabase.from("sponsors").select("id, name, contact_name, contact_email, stage, contribution_type, amount, renewal_date, notes").order("name")
+    : { data: null };
+  const sponsors: SponsorRow[] = (sponsorRowsData ?? []).map((row) => ({ id: row.id, name: row.name, contactName: row.contact_name ?? "", contactEmail: row.contact_email ?? "", stage: row.stage, contributionType: row.contribution_type, amount: Number(row.amount ?? 0), renewalDate: row.renewal_date ?? "", notes: row.notes ?? "" }));
 
   return (
     <main className="app-shell">
       <aside>
         <div className="brand"><div className="brand-mark">I</div><div><strong>INVICTUS</strong><span>Operations Hub</span></div></div>
-        <nav><a className="active" href="#overview"><Activity size={18}/> Overview</a><a href="#players"><Users size={18}/> Players</a><a href="#teams"><UsersRound size={18}/> Teams</a><a href="#billing"><WalletCards size={18}/> Billing</a></nav>
+        <nav><a className="active" href="#overview"><Activity size={18}/> Overview</a><a href="#players"><Users size={18}/> Players</a><a href="#teams"><UsersRound size={18}/> Teams</a><a href="#billing"><WalletCards size={18}/> Billing</a>{showFinancials ? <a href="#sponsors"><Building2 size={18}/> Sponsors</a> : null}</nav>
         <div className="account"><span>{profile?.full_name ?? user.email}</span><small>{String(profile?.role ?? "member").replaceAll("_", " ")}</small><form action={signOut}><button>Sign out</button></form></div>
       </aside>
       <div className="content">
@@ -146,6 +151,7 @@ export default async function Home() {
         <PlayerRoster players={rosterPlayers} showFinancials={showFinancials} />
         <TeamOperations teams={teams} coaches={coaches} seasons={seasonRows ?? []} canEdit={["owner_admin", "program_director"].includes(profile?.role ?? "")} canCreateSeason={profile?.role === "owner_admin"} />
         {profile?.role === "owner_admin" ? <TeamHealth teams={teamHealth} /> : null}
+        {profile?.role === "owner_admin" ? <SponsorPipeline initialRows={sponsors} /> : null}
         <div className="dashboard-grid">
           <section className="status-card"><p className="eyebrow">Foundation status</p><h2>Core systems ready</h2><ul><li><span>Supabase authentication</span><b>Connected</b></li><li><span>Role-based access</span><b>Enforced</b></li><li><span>Stripe connection</span><b className="test">Test mode</b></li></ul></section>
           {profile?.role === "owner_admin" ? <ReconciliationCard players={playerOptions} /> : <section className="reconcile-card"><p className="eyebrow">Billing</p><h2>Billing status is role protected</h2><p className="muted">Financial reconciliation is available to Owner/Admin users.</p></section>}
