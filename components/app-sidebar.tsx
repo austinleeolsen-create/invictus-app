@@ -1,13 +1,13 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { Activity, BadgeDollarSign, Bell, BookOpenCheck, Building2, CalendarCheck2, CalendarClock, CalendarDays, ClipboardCheck, Clock3, Hammer, Landmark, Menu, MessageCircle, Plane, Shirt, TrendingUp, Users, UsersRound, WalletCards, X } from "lucide-react";
+import { Activity, BadgeDollarSign, Bell, BookOpenCheck, Building2, CalendarCheck2, CalendarClock, CalendarDays, ChevronDown, ClipboardCheck, Clock3, Hammer, Landmark, Menu, MessageCircle, Plane, Shirt, TrendingUp, Users, UsersRound, WalletCards, X } from "lucide-react";
 
 type NavItem = { key: string; label: string; icon: ReactNode };
 
 export function AppSidebar({ view, name, role, showFinancials, isOperationsManager, children }: { view: string; name: string; role: string; showFinancials: boolean; isOperationsManager: boolean; children: ReactNode }) {
   const [open, setOpen] = useState(false);
-  const group = (label: string, items: NavItem[]) => <div className="nav-group"><span className="nav-group-label">{label}</span>{items.map(item => <a key={item.key} className={view === item.key ? "active" : ""} href={`/?view=${item.key}`} onClick={() => setOpen(false)}>{item.icon}{item.label}</a>)}</div>;
+  const group = (label: string, items: NavItem[]) => <details className="nav-group" open={items.some(item => item.key === view)}><summary><span>{label}</span><ChevronDown size={14}/></summary><div>{items.map(item => <a key={item.key} className={view === item.key ? "active" : ""} href={`/?view=${item.key}`} onClick={() => setOpen(false)}>{item.icon}{item.label}</a>)}</div></details>;
 
   return <>
     <div className="mobile-nav-bar"><div className="brand compact"><div className="brand-mark">I</div><div><strong>INVICTUS</strong><span>Operations Hub</span></div></div><button type="button" onClick={() => setOpen(true)} aria-label="Open navigation"><Menu size={22}/><span>Menu</span></button></div>
