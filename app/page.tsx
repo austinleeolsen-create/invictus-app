@@ -25,7 +25,7 @@ import { SeasonReadiness, type ReadinessRow } from "@/components/season-readines
 import { AttendanceReport } from "@/components/attendance-report";
 import { TeamCalendar, type TeamEvent } from "@/components/team-calendar";
 import { Announcements, type Announcement } from "@/components/announcements";
-import { GroupMeInbox, type GroupMeConnection, type GroupMeSubmission } from "@/components/groupme-inbox";
+import { GroupMeInbox, type GroupMeBroadcast, type GroupMeConnection, type GroupMeSubmission } from "@/components/groupme-inbox";
 
 export default async function Home({ searchParams }: { searchParams: Promise<{ view?: string }> }) {
   const supabase = await createSupabaseServerClient();
@@ -108,6 +108,8 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ v
   const groupMeConnections: GroupMeConnection[] = (groupMeConnectionRows??[]).map(row=>{const teamValue=row.teams as unknown as {name?:string}|Array<{name?:string}>|null,team=Array.isArray(teamValue)?teamValue[0]:teamValue;return{id:row.id,teamId:row.team_id,teamName:team?.name??"Team",groupId:row.group_id,groupName:row.group_name,active:Boolean(row.is_active)}});
   const { data: groupMeSubmissionRows } = isOperationsManager ? await supabase.from("groupme_schedule_submissions").select("id, team_id, sender_name, raw_message, event_type, title, start_at, location, opponent, notes, status, received_at, teams(name)").order("received_at",{ascending:false}).limit(100) : { data:null };
   const groupMeSubmissions: GroupMeSubmission[] = (groupMeSubmissionRows??[]).map(row=>{const teamValue=row.teams as unknown as {name?:string}|Array<{name?:string}>|null,team=Array.isArray(teamValue)?teamValue[0]:teamValue;return{id:row.id,teamId:row.team_id,teamName:team?.name??"Team",senderName:row.sender_name??"Coach",rawMessage:row.raw_message,eventType:row.event_type,title:row.title,startAt:row.start_at??"",location:row.location??"",opponent:row.opponent??"",notes:row.notes??"",status:row.status,receivedAt:row.received_at}});
+  const { data: groupMeBroadcastRows } = isOperationsManager ? await supabase.from("groupme_broadcasts").select("id, message, status, created_at, groupme_broadcast_deliveries(group_name, status)").order("created_at",{ascending:false}).limit(10) : { data:null };
+  const groupMeBroadcasts: GroupMeBroadcast[] = (groupMeBroadcastRows??[]).map(row=>{const deliveries=(row.groupme_broadcast_deliveries??[]) as unknown as Array<{group_name:string;status:string}>;return{id:row.id,message:row.message,status:row.status,createdAt:row.created_at,deliveries:deliveries.map(delivery=>({groupName:delivery.group_name,status:delivery.status}))}});
   const { data: jerseyTrackingRows } = isOperationsManager
     ? await supabase.from("player_jersey_tracking").select("player_id, season_id, team_id, jersey_number, jersey_size, status, notes")
     : { data: null };
@@ -247,7 +249,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ v
       {view === "attendance" && isOperationsManager ? <AttendanceReport players={rosterPlayers} notes={developmentNotes}/> : null}
       {view === "calendar" ? <TeamCalendar initialEvents={teamEvents} teams={teams.map(team=>({id:team.id,name:team.name}))} canManage={isOperationsManager}/> : null}
       {view === "announcements" ? <Announcements initialItems={announcements} teams={teams.map(team=>({id:team.id,name:team.name}))} canManage={isOperationsManager}/> : null}
-      {view === "groupme" && isOperationsManager ? <GroupMeInbox connections={groupMeConnections} initialSubmissions={groupMeSubmissions} teams={teams.map(team=>({id:team.id,name:team.name}))}/> : null}
+      {view === "groupme" && isOperationsManager ? <GroupMeInbox connections={groupMeConnections} initialSubmissions={groupMeSubmissions} teams={teams.map(team=>({id:team.id,name:team.name}))} broadcasts={groupMeBroadcasts}/> : null}
       {view === "schedule" ? <CourtSchedule initialSlots={courtSlots} courts={(courtRowsData??[]).map(row=>({id:row.id,name:row.name}))} canManage={canManageSchedule} coachLinked={Boolean(profile?.coach_id)} profiles={(scheduleProfileRows??[]).map(row=>({id:row.id,name:row.full_name??"Unnamed user",role:row.role,coachId:row.coach_id??""}))} coaches={staffDirectory.filter(staff=>staff.isCoach).map(staff=>({id:staff.id,name:staff.name}))}/> : null}
       {view === "time" ? <CoachTimeTracker initialEntries={coachTimeEntries} teams={teams.map(team=>({id:team.id,name:team.name}))} canManage={canManageSchedule} coachLinked={Boolean(profile?.coach_id)}/> : null}
       {view === "billing" && showFinancials ? <><ReconciliationCard players={playerOptions}/><PaymentFollowups initialRows={paymentFollowups}/></> : null}
