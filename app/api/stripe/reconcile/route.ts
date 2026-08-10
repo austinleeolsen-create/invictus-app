@@ -29,13 +29,15 @@ export async function POST() {
     const linkedIds = new Set(
       (billing ?? []).map((row) => row.stripe_subscription_id).filter(Boolean) as string[],
     );
-    const result = await reconcileStripe(linkedIds);
+    const {data:invoiceLinks,error:invoiceLinkError}=await supabase.from("stripe_invoice_links").select("stripe_invoice_id");if(invoiceLinkError)throw invoiceLinkError;
+    const result = await reconcileStripe(linkedIds,new Set((invoiceLinks??[]).map(row=>row.stripe_invoice_id)));
+    const emails=[...new Set(result.unmatchedInvoices.map(invoice=>invoice.customerEmail.toLowerCase()).filter(Boolean))];const suggestions:Record<string,string>={};if(emails.length){const{data:details}=await supabase.from("player_profile_details").select("player_id,parent_email").in("parent_email",emails);for(const invoice of result.unmatchedInvoices){const matches=(details??[]).filter(row=>row.parent_email?.toLowerCase()===invoice.customerEmail.toLowerCase());if(matches.length===1)suggestions[invoice.id]=matches[0].player_id}}
     await Promise.all(result.linkedBillingStatuses.map((billing) => supabase
       .from("player_billing")
       .update({ billing_status: billing.billingStatus, open_balance: billing.openBalance, updated_at: new Date().toISOString() })
       .eq("stripe_subscription_id", billing.subscriptionId)));
     await supabase.from("stripe_sync_log").insert({ sync_type: "payment_status", status: "completed", records_processed: result.linkedBillingStatuses.length, message: "Player payment status and open balances refreshed from Stripe.", completed_at: new Date().toISOString() });
-    return NextResponse.json(result);
+    return NextResponse.json({...result,invoiceSuggestions:suggestions});
   } catch (error) {
     const message = error instanceof Error ? error.message : "Reconciliation failed.";
     return NextResponse.json({ error: message }, { status: 500 });

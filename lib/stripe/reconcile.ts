@@ -20,6 +20,7 @@ export type StripeReconciliation = {
     customer: string;
     monthlyRecurringRevenue: number;
   }>;
+  unmatchedInvoices: Array<{ id:string; customer:string; customerEmail:string; description:string; amountDue:number; amountPaid:number; status:string; dueDate:string }>;
 };
 
 export function monthlyAmount(item: Stripe.SubscriptionItem) {
@@ -35,7 +36,7 @@ export function monthlyAmount(item: Stripe.SubscriptionItem) {
   return 0;
 }
 
-export async function reconcileStripe(linkedIds: Set<string>): Promise<StripeReconciliation> {
+export async function reconcileStripe(linkedIds: Set<string>, linkedInvoiceIds = new Set<string>()): Promise<StripeReconciliation> {
   const stripe = getStripe();
   const subscriptions: Stripe.Subscription[] = [];
 
@@ -81,6 +82,8 @@ export async function reconcileStripe(linkedIds: Set<string>): Promise<StripeRec
       ) / 100,
     };
   }));
+  const separateInvoices:Stripe.Invoice[]=[];for await(const invoice of stripe.invoices.list({limit:100})){const raw=invoice as Stripe.Invoice&{subscription?:string|null};const subscription=(raw.parent?.subscription_details?.subscription??raw.subscription);if(!subscription&&invoice.id&&!linkedInvoiceIds.has(invoice.id))separateInvoices.push(invoice)}
+  const unmatchedInvoices=await Promise.all(separateInvoices.map(async invoice=>{const customerId=typeof invoice.customer==="string"?invoice.customer:invoice.customer?.id;const customer=customerId?await stripe.customers.retrieve(customerId):null;const label=!customer||customer.deleted?"Unnamed Stripe customer":customer.name||customer.email||"Unnamed Stripe customer";return{id:invoice.id??"",customer:label,customerEmail:!customer||customer.deleted?"":customer.email??"",description:invoice.description||invoice.lines.data[0]?.description||"Separate player fee",amountDue:invoice.amount_due/100,amountPaid:invoice.amount_paid/100,status:invoice.status??"draft",dueDate:invoice.due_date?new Date(invoice.due_date*1000).toISOString().slice(0,10):""}}));
 
   return {
     mode: "test",
@@ -95,5 +98,6 @@ export async function reconcileStripe(linkedIds: Set<string>): Promise<StripeRec
     linkedSubscriptions: active.length - unmatched.length,
     linkedBillingStatuses,
     unmatchedSubscriptions,
+    unmatchedInvoices,
   };
 }
