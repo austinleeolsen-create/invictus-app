@@ -71,6 +71,19 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: true, created: toCreate.length, skipped: unique.length - toCreate.length });
     }
 
+    if (action === "delete_team") {
+      const id = field(body, "id");
+      if (!id) return NextResponse.json({ error: "Team is required." }, { status: 400 });
+      const { data: assignedPlayers, error: playerError } = await supabase.from("players").select("id").eq("team_id", id).limit(1);
+      if (playerError) throw playerError;
+      if (assignedPlayers?.length) return NextResponse.json({ error: "Move the players off this team before deleting it." }, { status: 409 });
+      const { error: assignmentError } = await supabase.from("team_coaches").delete().eq("team_id", id);
+      if (assignmentError) throw assignmentError;
+      const { error } = await supabase.from("teams").delete().eq("id", id);
+      if (error) throw error;
+      return NextResponse.json({ ok: true });
+    }
+
     if (action === "assign_coach") {
       const teamId = field(body, "teamId"), coachId = field(body, "coachId"), assignmentRole = field(body, "role");
       if (!teamId || !coachId || !["head", "assistant"].includes(assignmentRole)) return NextResponse.json({ error: "Complete every assignment field." }, { status: 400 });
