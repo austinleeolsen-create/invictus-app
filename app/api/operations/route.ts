@@ -45,6 +45,32 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: true });
     }
 
+    if (action === "bulk_create_teams") {
+      const seasonId = field(body, "seasonId");
+      const submitted = Array.isArray(body.teams) ? body.teams : [];
+      if (!seasonId) return NextResponse.json({ error: "Choose a season first." }, { status: 400 });
+      if (!submitted.length || submitted.length > 100) return NextResponse.json({ error: "Provide between 1 and 100 teams." }, { status: 400 });
+      const { data: season } = await supabase.from("seasons").select("id").eq("id", seasonId).maybeSingle();
+      if (!season) return NextResponse.json({ error: "That season could not be found." }, { status: 404 });
+      const normalized = submitted.flatMap((item) => {
+        if (!item || typeof item !== "object") return [];
+        const record = item as Record<string, unknown>;
+        const name = typeof record.name === "string" ? record.name.trim() : "";
+        const ageGroup = typeof record.ageGroup === "string" ? record.ageGroup.trim() : "";
+        return name ? [{ name, age_group: ageGroup || null, season_id: seasonId }] : [];
+      });
+      const unique = Array.from(new Map(normalized.map((team) => [team.name.toLocaleLowerCase(), team])).values());
+      const { data: existing, error: existingError } = await supabase.from("teams").select("name").eq("season_id", seasonId);
+      if (existingError) throw existingError;
+      const existingNames = new Set((existing ?? []).map((team) => team.name.toLocaleLowerCase()));
+      const toCreate = unique.filter((team) => !existingNames.has(team.name.toLocaleLowerCase()));
+      if (toCreate.length) {
+        const { error } = await supabase.from("teams").insert(toCreate);
+        if (error) throw error;
+      }
+      return NextResponse.json({ ok: true, created: toCreate.length, skipped: unique.length - toCreate.length });
+    }
+
     if (action === "assign_coach") {
       const teamId = field(body, "teamId"), coachId = field(body, "coachId"), assignmentRole = field(body, "role");
       if (!teamId || !coachId || !["head", "assistant"].includes(assignmentRole)) return NextResponse.json({ error: "Complete every assignment field." }, { status: 400 });
