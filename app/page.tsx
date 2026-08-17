@@ -35,9 +35,9 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ v
   const supabase = await createSupabaseServerClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
-  const { data: parentAccount } = await supabase.from("parent_accounts").select("user_id").eq("user_id",user.id).maybeSingle();
-  if(parentAccount) redirect("/parent");
   const { data: profile } = await supabase.from("profiles").select("full_name, role, coach_id").eq("id", user.id).single();
+  const { data: parentAccount } = await supabase.from("parent_accounts").select("user_id").eq("user_id",user.id).maybeSingle();
+  if(parentAccount && !["owner_admin","program_director","coach"].includes(profile?.role??"")) redirect("/parent");
   const showFinancials = profile?.role === "owner_admin";
   const isOperationsManager = ["owner_admin", "program_director"].includes(profile?.role ?? "");
   const requestedView = (await searchParams).view ?? "overview";

@@ -19,6 +19,8 @@ export async function POST(request: Request) {
       if(!invitedUser){const origin=new URL(request.url).origin;const{data,error}=await service.auth.admin.inviteUserByEmail(email,{redirectTo:`${origin}/auth/callback?next=/update-password`,data:{full_name:fullName}});if(error)throw error;invitedUser=data.user;invited=true}
       if(!invitedUser)throw new Error("Unable to create the login.");
       if(portalType==="parent"){
+        const{data:existingProfile}=await service.from("profiles").select("role").eq("id",invitedUser.id).maybeSingle();
+        if(["owner_admin","program_director","coach"].includes(existingProfile?.role??""))throw new Error("That email already belongs to a staff login. Use a separate parent email.");
         const playerId=String(body.playerId??"").trim();if(!playerId)throw new Error("Choose the parent's child.");
         const{error:accountError}=await service.from("parent_accounts").upsert({user_id:invitedUser.id,full_name:fullName});if(accountError)throw accountError;
         const{error:linkError}=await service.from("parent_player_links").upsert({parent_user_id:invitedUser.id,player_id:playerId,relationship:String(body.relationship??"Parent / guardian"),created_by:user.id});if(linkError)throw linkError;
