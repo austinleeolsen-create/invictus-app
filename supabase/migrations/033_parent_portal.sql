@@ -48,8 +48,5 @@ drop policy if exists "parents view linked jersey status" on public.player_jerse
 create policy "parents view linked jersey status" on public.player_jersey_tracking for select to authenticated using(public.is_parent_for_player(player_id));
 drop policy if exists "parents view published development" on public.player_development_notes;
 create policy "parents view published development" on public.player_development_notes for select to authenticated using(parent_visible and not manager_only and public.is_parent_for_player(player_id));
-drop policy if exists "parents view linked separate invoices" on public.stripe_invoice_links;
-create policy "parents view linked separate invoices" on public.stripe_invoice_links for select to authenticated using(public.is_parent_for_player(player_id));
-
 create index if not exists parent_player_links_player_idx on public.parent_player_links(player_id);
 create index if not exists player_development_parent_visible_idx on public.player_development_notes(player_id,created_at desc) where parent_visible=true;

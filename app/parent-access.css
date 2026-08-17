@@ -1,0 +1,10 @@
+.parent-access-admin{margin-top:18px;border:1px solid #ded4e2;border-radius:14px;padding:20px;background:white}
+.portal-invite{display:grid;grid-template-columns:repeat(3,1fr);align-items:end;gap:10px;margin-top:16px;border-radius:10px;padding:15px;background:#f6f1f7}
+.portal-invite label,.parent-access-form label{display:grid;gap:5px;color:#55465a;font-size:11px;font-weight:700}
+.portal-invite input,.portal-invite select,.parent-access-form input,.parent-access-form select{min-width:0;border:1px solid #d9cfdd;border-radius:7px;padding:10px;background:white}
+.portal-invite button,.parent-access-form button{border:0;border-radius:8px;padding:11px 15px;background:#713586;color:white;font-weight:800}
+.portal-invite button:disabled,.parent-access-form button:disabled{opacity:.45}
+.existing-parent-links{margin-top:14px}.existing-parent-links>summary{cursor:pointer;color:#713586;font-size:12px;font-weight:800}
+.parent-access-form{display:grid;grid-template-columns:1fr 1fr 1fr auto;align-items:end;gap:10px;margin-top:15px}
+.parent-link-list{display:grid;gap:8px;margin-top:14px}.parent-link-list>div{display:flex;align-items:center;justify-content:space-between;border-radius:8px;padding:10px 12px;background:#f6f1f7}.parent-link-list strong,.parent-link-list small{display:block}.parent-link-list small{margin-top:2px;color:#756979}.parent-link-list button{display:grid;place-items:center;border:1px solid #dfcfdc;border-radius:7px;padding:7px;background:white;color:#9c2c2c}
+@media(max-width:800px){.parent-access-form,.portal-invite{grid-template-columns:1fr}.parent-access-form button,.portal-invite button{width:100%}}
