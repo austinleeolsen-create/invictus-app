@@ -34,6 +34,8 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ v
   const supabase = await createSupabaseServerClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
+  const { data: parentAccount } = await supabase.from("parent_accounts").select("user_id").eq("user_id",user.id).maybeSingle();
+  if(parentAccount) redirect("/parent");
   const { data: profile } = await supabase.from("profiles").select("full_name, role, coach_id").eq("id", user.id).single();
   const showFinancials = profile?.role === "owner_admin";
   const isOperationsManager = ["owner_admin", "program_director"].includes(profile?.role ?? "");
@@ -71,8 +73,8 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ v
     };
   });
   const playerOptions = rosterPlayers.map((player) => ({ id: player.id, first_name: player.firstName, last_name: player.lastName }));
-  const { data: developmentNoteRows } = await supabase.from("player_development_notes").select("id, player_id, category, attendance_status, contact_method, contact_outcome, manager_only, activity_date, note, follow_up_needed, resolved_at, created_at, coaches(name), teams(name)").order("created_at",{ascending:false});
-  const developmentNotes:DevelopmentNote[]=(developmentNoteRows??[]).map(row=>{const coachValue=row.coaches as unknown as {name?:string}|Array<{name?:string}>|null,teamValue=row.teams as unknown as {name?:string}|Array<{name?:string}>|null;const coach=Array.isArray(coachValue)?coachValue[0]:coachValue,team=Array.isArray(teamValue)?teamValue[0]:teamValue;return{id:row.id,playerId:row.player_id,coachName:coach?.name??"Molly / Admin",teamName:team?.name??"",category:row.category,attendanceStatus:row.attendance_status??"",contactMethod:row.contact_method??"",contactOutcome:row.contact_outcome??"",managerOnly:Boolean(row.manager_only),activityDate:row.activity_date??row.created_at.slice(0,10),note:row.note,followUpNeeded:Boolean(row.follow_up_needed),resolvedAt:row.resolved_at??"",createdAt:row.created_at}});
+  const { data: developmentNoteRows } = await supabase.from("player_development_notes").select("id, player_id, category, attendance_status, contact_method, contact_outcome, manager_only, parent_visible, activity_date, note, follow_up_needed, resolved_at, created_at, coaches(name), teams(name)").order("created_at",{ascending:false});
+  const developmentNotes:DevelopmentNote[]=(developmentNoteRows??[]).map(row=>{const coachValue=row.coaches as unknown as {name?:string}|Array<{name?:string}>|null,teamValue=row.teams as unknown as {name?:string}|Array<{name?:string}>|null;const coach=Array.isArray(coachValue)?coachValue[0]:coachValue,team=Array.isArray(teamValue)?teamValue[0]:teamValue;return{id:row.id,playerId:row.player_id,coachName:coach?.name??"Molly / Admin",teamName:team?.name??"",category:row.category,attendanceStatus:row.attendance_status??"",contactMethod:row.contact_method??"",contactOutcome:row.contact_outcome??"",managerOnly:Boolean(row.manager_only),parentVisible:Boolean(row.parent_visible),activityDate:row.activity_date??row.created_at.slice(0,10),note:row.note,followUpNeeded:Boolean(row.follow_up_needed),resolvedAt:row.resolved_at??"",createdAt:row.created_at}});
   const { data: teamRows } = await supabase.from("teams").select("id, name, age_group, season_id, seasons(name, is_current), team_coaches(role, coaches(name)), players(id)").order("name");
   const teams: TeamSummary[] = (teamRows ?? []).map((row) => {
     const seasonValue = row.seasons as unknown as { name?: string; is_current?: boolean } | Array<{ name?: string; is_current?: boolean }> | null;

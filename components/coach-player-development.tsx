@@ -3,7 +3,7 @@ import { useMemo, useState } from "react";
 import { AlertCircle, Check, ClipboardList, Search, UsersRound, X } from "lucide-react";
 
 export type DevelopmentPlayer={id:string;firstName:string;lastName:string;team:string|null;teamId?:string|null;grade:string|null;jersey:string|null};
-export type DevelopmentNote={id:string;playerId:string;coachName:string;teamName:string;category:string;attendanceStatus:string;contactMethod:string;contactOutcome:string;managerOnly:boolean;activityDate:string;note:string;followUpNeeded:boolean;resolvedAt:string;createdAt:string};
+export type DevelopmentNote={id:string;playerId:string;coachName:string;teamName:string;category:string;attendanceStatus:string;contactMethod:string;contactOutcome:string;managerOnly:boolean;parentVisible?:boolean;activityDate:string;note:string;followUpNeeded:boolean;resolvedAt:string;createdAt:string};
 const label=(value:string)=>value.replaceAll("_"," ").replace(/\b\w/g,letter=>letter.toUpperCase());
 
 export function CoachPlayerDevelopment({players,notes,coachLinked,canManage}:{players:DevelopmentPlayer[];notes:DevelopmentNote[];coachLinked:boolean;canManage:boolean}){
