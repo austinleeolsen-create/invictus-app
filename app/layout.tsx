@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import "./parent-access.css";
 import "./demo.css";
+import "./demo-features.css";
 import "./demo-welcome.css";
 import "./demo-contact.css";
 
