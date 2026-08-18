@@ -2,6 +2,10 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 export async function middleware(request: NextRequest) {
+  if (process.env.DEMO_ONLY === "true") {
+    if (request.nextUrl.pathname === "/demo") return NextResponse.next();
+    return NextResponse.redirect(new URL("/demo", request.url));
+  }
   let response = NextResponse.next({ request });
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
