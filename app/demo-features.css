@@ -2,6 +2,26 @@
   overflow-y: auto;
 }
 
+.demo-start-tour {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  margin-top: 18px;
+  border: 1px solid #b875ca;
+  border-radius: 9px;
+  padding: 10px;
+  background: #713586;
+  color: white;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.demo-start-tour svg {
+  width: 14px;
+}
+
 .demo-module-nav {
   margin-top: 14px !important;
   padding-top: 14px;
@@ -82,6 +102,97 @@
   white-space: nowrap;
 }
 
+.demo-tour {
+  position: fixed;
+  z-index: 20;
+  right: 24px;
+  bottom: 24px;
+  width: min(440px, calc(100vw - 32px));
+  border: 1px solid #cdaed8;
+  border-radius: 18px;
+  padding: 20px;
+  background: #160e19;
+  color: white;
+  box-shadow: 0 22px 70px rgba(25, 10, 31, 0.32);
+}
+
+.demo-tour-progress,
+.demo-tour-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.demo-tour-progress {
+  justify-content: space-between;
+  color: #d29bdf;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .12em;
+}
+
+.demo-tour-dots {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 4px;
+  margin: 10px 0 18px;
+}
+
+.demo-tour-dots i {
+  height: 4px;
+  border-radius: 9px;
+  background: #493d4d;
+}
+
+.demo-tour-dots i.done {
+  background: #b967ce;
+}
+
+.demo-tour>small {
+  color: #a99fad;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.demo-tour h2 {
+  margin: 7px 0 8px;
+  font: 500 25px/1.1 Georgia, serif;
+}
+
+.demo-tour p {
+  margin: 0 0 18px;
+  color: #c9becd;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.demo-tour-actions {
+  justify-content: flex-end;
+}
+
+.demo-tour-actions button {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid #55485a;
+  border-radius: 7px;
+  padding: 8px 10px;
+  background: transparent;
+  color: white;
+  font-size: 10px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.demo-tour-actions button.primary {
+  border-color: #9350a6;
+  background: #713586;
+}
+
+.demo-tour-actions svg {
+  width: 13px;
+}
+
 @media (max-width: 760px) {
   .demo-module-nav {
     display: flex !important;
@@ -105,5 +216,10 @@
   .demo-feature-row {
     grid-template-columns: 1fr;
     gap: 6px;
+  }
+
+  .demo-tour {
+    right: 16px;
+    bottom: 16px;
   }
 }
