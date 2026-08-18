@@ -3,6 +3,7 @@ import "./globals.css";
 import "./parent-access.css";
 import "./demo.css";
 import "./demo-welcome.css";
+import "./demo-contact.css";
 
 export const metadata: Metadata = { title: "Invictus Hub", description: "Invictus Basketball Club operations hub" };
 
