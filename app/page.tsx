@@ -30,12 +30,17 @@ import { GroupMeConnectionManager } from "@/components/groupme-connection-manage
 import { GroupMeBulkSetup } from "@/components/groupme-bulk-setup";
 import { AppSidebar } from "@/components/app-sidebar";
 import { ParentAccessManager } from "@/components/parent-access-manager";
+import { AccountAccessManager, type AccessAccount } from "@/components/account-access-manager";
 
 export default async function Home({ searchParams }: { searchParams: Promise<{ view?: string }> }) {
   const supabase = await createSupabaseServerClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
-  const { data: profile } = await supabase.from("profiles").select("full_name, role, coach_id").eq("id", user.id).single();
+  const { data: profile } = await supabase.from("profiles").select("full_name, role, coach_id, is_active").eq("id", user.id).single();
+  if (profile?.is_active !== true) {
+    await supabase.auth.signOut();
+    redirect(`/login?error=${encodeURIComponent("This account no longer has access to the Hub.")}`);
+  }
   const { data: parentAccount } = await supabase.from("parent_accounts").select("user_id").eq("user_id",user.id).maybeSingle();
   if(parentAccount && !["owner_admin","program_director","coach"].includes(profile?.role??"")) redirect("/parent");
   const showFinancials = profile?.role === "owner_admin";
@@ -43,9 +48,11 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ v
   const requestedView = (await searchParams).view ?? "overview";
   const generalViews = ["overview", "announcements", "players", "teams", "calendar", "schedule", "time"];
   const managerViews = ["readiness", "jerseys", "attendance", "groupme"];
-  const financialViews = ["billing", "pricing", "cash", "payroll", "travel", "sponsors", "facility", "quickbooks"];
+  const financialViews = ["billing", "pricing", "cash", "payroll", "travel", "sponsors", "facility", "quickbooks", "access"];
   const allowedViews = showFinancials ? [...generalViews, ...managerViews, ...financialViews] : isOperationsManager ? [...generalViews, ...managerViews] : generalViews;
   const view = allowedViews.includes(requestedView) ? requestedView : "overview";
+  const { data: accessRows } = showFinancials ? await supabase.from("profiles").select("id, full_name, email, role, is_active, access_disabled_at, access_disabled_reason").order("full_name") : { data: null };
+  const accessAccounts: AccessAccount[] = (accessRows ?? []).map(row => ({ id: row.id, name: row.full_name ?? "", email: row.email ?? "", role: row.role ?? "member", active: row.is_active !== false, disabledAt: row.access_disabled_at ?? null, disabledReason: row.access_disabled_reason ?? null }));
   const { data: playerRows } = showFinancials
     ? await supabase.from("players").select("id, first_name, last_name, grade, jersey, status, billing_status, teams(id, name), player_billing(monthly_tuition, open_balance, billing_status), player_profile_details(parent_name, parent_email, parent_phone, emergency_contact, coach_notes, admin_notes)").order("last_name")
     : await supabase.from("players").select("id, first_name, last_name, grade, jersey, status, billing_status, teams(id, name)").order("last_name");
@@ -239,7 +246,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ v
     announcements: { eyebrow: "Announcements", title: "Keep every coach on the same page." },
     groupme: { eyebrow: "GroupMe integration", title: "Review schedules where coaches already post them." },
     schedule: { eyebrow: "Court schedule", title: "Classes, availability, and coach PT." },
-    overview: { eyebrow: "Operations overview", title: "Good work starts with a clear court." }, players: { eyebrow: "Player operations", title: "Players and payment status." }, teams: { eyebrow: "Program operations", title: "Teams, coaches, and team health." }, billing: { eyebrow: "Tuition collections", title: "Who has paid—and who needs a call?" }, pricing: { eyebrow:"Tuition planning", title:"Understand a price change before making it." }, cash: { eyebrow: "Cash planning", title: "Can we pay the bills and still breathe?" }, payroll: { eyebrow: "Staff planning", title: "Hours, teams, and expected pay." }, travel: { eyebrow: "Team travel", title: "Trips, players, payments, and logistics." }, sponsors: { eyebrow: "Community support", title: "Sponsors, commitments, and renewals." }, facility: { eyebrow: "Facility planning", title: "Fix the gym without risking the bills." }, quickbooks: { eyebrow: "Accounting connection", title: "QuickBooks data behind the simple numbers." },
+    overview: { eyebrow: "Operations overview", title: "Good work starts with a clear court." }, players: { eyebrow: "Player operations", title: "Players and payment status." }, teams: { eyebrow: "Program operations", title: "Teams, coaches, and team health." }, billing: { eyebrow: "Tuition collections", title: "Who has paid—and who needs a call?" }, pricing: { eyebrow:"Tuition planning", title:"Understand a price change before making it." }, cash: { eyebrow: "Cash planning", title: "Can we pay the bills and still breathe?" }, payroll: { eyebrow: "Staff planning", title: "Hours, teams, and expected pay." }, travel: { eyebrow: "Team travel", title: "Trips, players, payments, and logistics." }, sponsors: { eyebrow: "Community support", title: "Sponsors, commitments, and renewals." }, facility: { eyebrow: "Facility planning", title: "Fix the gym without risking the bills." }, quickbooks: { eyebrow: "Accounting connection", title: "QuickBooks data behind the simple numbers." }, access: { eyebrow: "Account security", title: "Decide who can enter the Hub." },
   };
   return <main className="app-shell">
     <AppSidebar view={view} name={profile?.full_name ?? user.email ?? "Invictus"} role={String(profile?.role ?? "member")} showFinancials={showFinancials} isOperationsManager={isOperationsManager} groupMePending={groupMeSubmissions.filter(item=>item.status==="pending").length} courtPending={courtSlots.filter(slot=>slot.request?.status==="requested").length}><form action={signOut}><button>Sign out</button></form></AppSidebar>
@@ -263,6 +270,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ v
       {view === "sponsors" && showFinancials ? <SponsorPipeline initialRows={sponsors}/> : null}
       {view === "facility" && showFinancials ? <FacilityProjects initialRows={facilityProjects} safeCash={safeCash} planReady={planReady}/> : null}
       {view === "quickbooks" && showFinancials ? <QboConnectionCard connected={Boolean(qboConnection)} environment={qboConnection?.environment} initialHistory={qboHistory}/> : null}
+      {view === "access" && showFinancials ? <AccountAccessManager initialAccounts={accessAccounts} currentUserId={user.id}/> : null}
     </div>
   </main>;
 }

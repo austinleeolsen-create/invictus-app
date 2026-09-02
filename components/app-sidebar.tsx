@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { Activity, BadgeDollarSign, Bell, BookOpenCheck, Building2, CalendarCheck2, CalendarClock, CalendarDays, ChevronDown, ClipboardCheck, Clock3, Hammer, Landmark, Menu, MessageCircle, Plane, Shirt, TrendingUp, Users, UsersRound, WalletCards, X } from "lucide-react";
+import { Activity, BadgeDollarSign, Bell, BookOpenCheck, Building2, CalendarCheck2, CalendarClock, CalendarDays, ChevronDown, ClipboardCheck, Clock3, Hammer, Landmark, Menu, MessageCircle, Plane, ShieldAlert, Shirt, TrendingUp, Users, UsersRound, WalletCards, X } from "lucide-react";
 
 type NavItem = { key: string; label: string; icon: ReactNode; badge?:number };
 
@@ -20,6 +20,7 @@ export function AppSidebar({ view, name, role, showFinancials, isOperationsManag
         {isOperationsManager ? group("Season", [{ key:"readiness", label:"Season Setup", icon:<ClipboardCheck size={18}/> }, { key:"jerseys", label:"Jerseys", icon:<Shirt size={18}/> }, { key:"attendance", label:"Attendance", icon:<CalendarCheck2 size={18}/> }, { key:"groupme", label:"GroupMe", icon:<MessageCircle size={18}/>, badge:groupMePending }]) : null}
         {group("Gym & staff", [{ key:"schedule", label:"Court Schedule", icon:<CalendarClock size={18}/>, badge:isOperationsManager?courtPending:0 }, { key:"time", label:isOperationsManager ? "Coach Time" : "My Time", icon:<Clock3 size={18}/> }])}
         {showFinancials ? group("Money", [{ key:"billing", label:"Billing", icon:<WalletCards size={18}/> }, { key:"pricing", label:"Pricing", icon:<TrendingUp size={18}/> }, { key:"cash", label:"Cash Plan", icon:<BadgeDollarSign size={18}/> }, { key:"payroll", label:"Payroll", icon:<BookOpenCheck size={18}/> }, { key:"travel", label:"Travel", icon:<Plane size={18}/> }, { key:"sponsors", label:"Sponsors", icon:<Building2 size={18}/> }, { key:"facility", label:"Facility", icon:<Hammer size={18}/> }, { key:"quickbooks", label:"QuickBooks", icon:<Landmark size={18}/> }]) : null}
+        {showFinancials ? group("Security", [{ key:"access", label:"Account Access", icon:<ShieldAlert size={18}/> }]) : null}
       </nav>
       <div className="account"><span>{name}</span><small>{role.replaceAll("_", " ")}</small>{children}</div>
     </aside>

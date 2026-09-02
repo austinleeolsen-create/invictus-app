@@ -21,7 +21,15 @@ export async function middleware(request: NextRequest) {
       },
     },
   });
-  await supabase.auth.getUser();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (user) {
+    const { data: profile } = await supabase.from("profiles").select("is_active").eq("id", user.id).maybeSingle();
+    if (profile?.is_active !== true) {
+      await supabase.auth.signOut();
+      if (request.nextUrl.pathname.startsWith("/api/")) return NextResponse.json({ error: "This account no longer has access to the Hub." }, { status: 403 });
+      return NextResponse.redirect(new URL(`/login?error=${encodeURIComponent("This account no longer has access to the Hub.")}`, request.url));
+    }
+  }
   return response;
 }
 
